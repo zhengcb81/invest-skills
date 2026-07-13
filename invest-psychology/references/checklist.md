@@ -12,4 +12,4 @@ Require an explicit `yes`, `no`, or `unknown` answer for each item:
 - `falsifiers_written`: I wrote observable conditions that would invalidate the thesis.
 - `missing_evidence_written`: I listed material evidence still missing.
 
-The script reports the user's own `yes/no/unknown` values, unanswered fields, and which risk-oriented questions the user marked adversely. It does not assign a score.
+Every sentence is a positive control. The script reports `no` answers as review triggers, preserves `unknown` as unresolved, and never treats `yes` as adverse. It does not assign a score.

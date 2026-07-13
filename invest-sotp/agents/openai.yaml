@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest SOTP"
-  short_description: "组合经验证的分部估值、所有权比例、净债务与公司级调整项目"
+  short_description: "Aggregate EV or equity segment values into company SOTP"
   default_prompt: "Use $invest-sotp to aggregate validated segment valuation artifacts without creating new forecasts."

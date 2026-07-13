@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zhengcb81.github.io/invest-skills/schemas/invest-artifact-2.0.schema.json",
+  "title": "Invest artifact envelope 2.0",
+  "type": "object",
+  "required": ["artifact_schema_version", "invest_suite_version", "module", "artifact_id", "artifact_sha256", "identity", "scope", "scenario_set", "scenario_manifest", "revenue_forecast_ref", "upstream_artifacts", "sources", "parameters", "evidence_claims", "data", "limitations"],
+  "properties": {
+    "artifact_schema_version": {"const": "2.0"},
+    "invest_suite_version": {"const": "5.0.0"},
+    "module": {"enum": ["financials", "valuation", "sotp", "management", "moat", "distribution", "compare", "psychology", "framework"]},
+    "artifact_id": {"$ref": "#/$defs/hash"},
+    "artifact_sha256": {"$ref": "#/$defs/hash"},
+    "identity": {"$ref": "#/$defs/identity"},
+    "scope": {"$ref": "#/$defs/scope"},
+    "scenario_set": {"oneOf": [{"maxItems": 0}, {"const": ["low", "base", "high"]}]},
+    "scenario_manifest": {"type": ["object", "null"]},
+    "revenue_forecast_ref": {"type": ["object", "null"]},
+    "upstream_artifacts": {"type": "array", "items": {"type": "object", "required": ["module", "artifact_id", "artifact_sha256"]}},
+    "sources": {"type": "array", "items": {"type": "object"}},
+    "parameters": {"type": "array", "items": {"type": "object"}},
+    "evidence_claims": {"type": "array", "items": {"type": "object"}},
+    "data": {"type": "object"},
+    "limitations": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "identity": {
+      "type": "object",
+      "required": ["company_name", "as_of_date", "currency", "unit", "fiscal_year_end", "base_year", "forecast_years"],
+      "properties": {
+        "company_name": {"type": "string", "minLength": 1},
+        "as_of_date": {"type": "string", "format": "date"},
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+        "unit": {"type": "string", "minLength": 1},
+        "fiscal_year_end": {"type": "string", "pattern": "^(mixed|[0-1][0-9]-[0-3][0-9])$"},
+        "base_year": {"type": "integer"},
+        "forecast_years": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer"}}
+      }
+    },
+    "scope": {
+      "oneOf": [
+        {"type": "object", "required": ["type", "name"], "properties": {"type": {"enum": ["company", "segment"]}, "name": {"type": "string", "minLength": 1}}},
+        {"type": "object", "required": ["type", "names"], "properties": {"type": {"const": "comparison"}, "names": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}}
+      ]
+    }
+  }
+}

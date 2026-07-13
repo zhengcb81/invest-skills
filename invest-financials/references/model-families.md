@@ -47,8 +47,10 @@ Keep revenue at the validated zero or early path. Model operating expense, capex
 
 ## Line rules
 
-Each line declares a formula using `x0`, `x1`, and so on plus ordered `input_refs`. Valid references are:
+Each line declares a formula using `x0`, `x1`, and so on plus ordered `input_refs`. It also declares aligned `input_dimensions`, `output_dimension`, `time_basis`, `metric_role`, `dimension_rule`, and `cash_flow_basis` for cash-flow lines. Valid references are:
 
 - `revenue`;
 - `line:<earlier_line_id>`;
 - `parameter:<parameter_id_template>`, where `{scenario}` and `{year}` are substituted at runtime.
+
+Registered families are `operating_company`, `bank`, `insurer`, `reit`, and `pre_revenue`. `custom` is allowed only with a non-empty rationale. Family registration is a semantic gate, not a claim that every accounting issue in that industry is automatically modeled. The analyst must still declare required outputs and identities such as balance roll-forwards, capital requirements, reserve changes, or FFO/AFFO reconciliation when material.

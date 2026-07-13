@@ -1,15 +1,14 @@
 # Management artifact contract
 
-Use `module="management"`, company scope, and a non-scenario artifact unless a finding explicitly differs by forecast scenario.
+Use `module="management"`, company scope, and a non-scenario artifact unless a finding explicitly differs by forecast scenario. Schema `2.0` data contains:
 
-Recommended `data` sections:
+- `qualitative_schema_version="2.0"`;
+- `facts`: each has a unique fact ID, fact type, dated statement, and one or more checked claim IDs;
+- `interpretations`: each has a unique interpretation ID, statement, input fact IDs, contrary fact IDs, and confidence;
+- `commitment_assessments`: each binds a prior commitment fact to outcome facts and a supported status;
+- `red_flag_interpretation_ids` and `disconfirming_fact_ids` that reference existing nodes;
+- `data_gaps` as explicit non-empty strings.
 
-- `decision_makers`: role, tenure, decision rights, ownership and evidence claim IDs;
-- `integrity_events`: event type, date, authority, status, materiality, response and claim IDs;
-- `commitment_records`: dated commitment, measurable target, due date, later outcome and claim IDs;
-- `governance`: board independence, related-party controls, voting control and audit oversight;
-- `incentives`: metric, horizon, dilution, clawback and payout evidence;
-- `succession`: key-person dependency, named successors, organizational depth and transitions;
-- `red_flags`, `disconfirming_evidence`, `data_gaps`, and `limitations`.
+Claims target factual nodes, not interpretations. Orphan claim IDs, unclaimed facts, future-dated facts, unknown interpretation inputs, and duplicate IDs all block finalization. Interpretations must not smuggle a new allegation that is absent from their input facts.
 
-An interpretation may reference several claims. Do not create an exact-value parameter for a qualitative allegation.
+Decision-makers, integrity events, governance, incentives, execution, and succession are expressed as `fact_type` values plus interpretations. Measured capital-allocation outcomes remain in `invest-distribution` and can be referenced as upstream evidence instead of recalculated here.

@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest Psychology"
-  short_description: "通过用户自述检查认知偏差、证据缺口、决策动机与论点证伪条件"
+  short_description: "Run a user-answered investment decision-process checklist"
   default_prompt: "Use $invest-psychology to run a user-answered pre-commitment and cognitive-bias checklist."

@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest Compare"
-  short_description: "统一口径、期间、情景和币种后横向比较已验证的投资模块产物"
+  short_description: "Compare aligned and validated investment artifacts"
   default_prompt: "Use $invest-compare to compare validated company artifacts on aligned metrics and scenarios."

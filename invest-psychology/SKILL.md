@@ -11,7 +11,7 @@ Ask the user for answers. Do not infer private motives from company data or conv
 
 1. Freeze the decision being considered and the user's stated thesis.
 2. Require explicit answers to the checklist in [references/checklist.md](references/checklist.md).
-3. Run `scripts/psychology_check.py` to identify unanswered items and user-acknowledged bias triggers.
+3. Run `scripts/psychology_check.py`. All questions are positive controls: `yes` passes the control, `no` requests review, and `unknown` remains unresolved.
 4. Ask the user to state thesis falsifiers and evidence still missing.
 5. Return a sidecar checklist. Do not merge it into company score or valuation.
 
@@ -24,4 +24,4 @@ python scripts/psychology_check.py psychology_input.json --output psychology.jso
 - No automated score, pass/fail verdict, expected return, price target, or maximum position.
 - No price-based sell rule unless the user explicitly supplies it for a separate portfolio process.
 - Do not fabricate an answer for an unanswered question.
-- A bias trigger is a prompt for review, not proof the investment is wrong.
+- A review trigger is a prompt for review, not proof the investment is wrong.

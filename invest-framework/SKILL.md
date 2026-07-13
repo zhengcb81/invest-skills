@@ -10,6 +10,7 @@ Run a dependency graph, not a monolithic scorecard.
 ## Required resources
 
 - Read `invest-core/SKILL.md` and [references/pipeline.md](references/pipeline.md).
+- Read [references/company-manifest.md](references/company-manifest.md) before running automatic heterogeneous-segment orchestration.
 - Load only the leaf skills needed for the user's question.
 - Use `scripts/bundle_validator.py` to validate the final single-company bundle.
 
@@ -27,8 +28,18 @@ Run a dependency graph, not a monolithic scorecard.
    - segment aggregation → `invest-sotp`;
    - peer comparison → `invest-compare` after company artifacts exist.
 5. Never ask a downstream module to rebuild an upstream path.
-6. Validate each artifact immediately, then validate the complete bundle, target-summary hashes, and upstream hashes.
-7. Report conclusions by module, management-target coverage, evidence strength, sensitivities, contradictions, and missing modules. Do not collapse unlike dimensions into an arbitrary total score.
+6. Declare management, moat, and distribution artifacts in the manifest and pass their immutable files with repeated `--supplemental` arguments when applicable.
+7. Validate each artifact immediately, then validate the complete bundle, scenario manifest, target-summary hashes, and upstream hashes.
+8. Publish the frozen manifest, frozen revenue result, all leaf artifacts, bundle, receipt, and read-only Markdown report atomically.
+9. Report conclusions by module, management-target coverage, evidence strength, sensitivities, contradictions, and missing modules. Do not collapse unlike dimensions into an arbitrary total score.
+
+For a complete segment financials → valuation → SOTP → bundle run, use one strict manifest and a frozen validated revenue result:
+
+```powershell
+python scripts/company_orchestrator.py company_manifest.json forecast.json --supplemental management.json --output-dir analysis-output
+```
+
+The orchestrator is sequential, runs every quantitative leaf in memory, validates declared qualitative sidecars, binds the manifest and scenario hashes into the final bundle, and publishes through a temporary directory only after the full graph passes. An existing output directory is never overwritten.
 
 ```powershell
 python scripts/bundle_validator.py bundle_input.json artifact_a.json artifact_b.json --output bundle.json
@@ -38,5 +49,6 @@ python scripts/bundle_validator.py bundle_input.json artifact_a.json artifact_b.
 
 - Keep `invest-psychology` outside the company bundle; it is a user-state sidecar.
 - Do not contain leaf formulas, duplicate source systems, company-type forecasts, scenario probabilities, valuation defaults, or position sizing.
+- Do not put API keys, tokens, passwords, network actions, formula overrides, or an incomplete segment list in a company manifest.
 - A missing required module blocks the bundle. An optional missing module is reported as a limitation, not imputed.
 - Do not produce buy/sell ratings merely by averaging module judgments.

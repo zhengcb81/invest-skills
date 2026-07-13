@@ -6,18 +6,16 @@ import unittest
 from pathlib import Path
 
 
+SUITE = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+sys.path.insert(0, str(SUITE / "tests_support"))
 
-from invest_contracts import InvestmentArtifactError, adapt_revenue, create_artifact, revenue_runtime  # noqa: E402
+from invest_contracts import InvestmentArtifactError, adapt_revenue, create_artifact  # noqa: E402
+from revenue_fixtures import load_revenue_fixture  # noqa: E402
 
 
 def forecast_result() -> dict:
-    core, _, rf_dir = revenue_runtime()
-    tests_dir = rf_dir / "tests"
-    if str(tests_dir) not in sys.path:
-        sys.path.insert(0, str(tests_dir))
-    from test_industry_end_to_end import model_document
-    return core.run_forecast(model_document("direct_revenue"))
+    return load_revenue_fixture("direct")
 
 
 class RevenueAdapterTests(unittest.TestCase):
@@ -33,6 +31,13 @@ class RevenueAdapterTests(unittest.TestCase):
         adapter = adapt_revenue(result, "segment", segment["name"])
         self.assertEqual(adapter["annual_revenue"]["low"], segment["scenarios"]["low"]["recognized_revenue"])
 
+    def test_segment_adapter_prefers_revenue_owned_effective_path(self) -> None:
+        result = load_revenue_fixture("effective")
+        segment = result["segments"][0]
+        adapter = adapt_revenue(result, "segment", segment["name"])
+        self.assertEqual(adapter["annual_revenue"]["base"], segment["scenarios"]["base"]["effective_revenue"])
+        self.assertNotEqual(adapter["annual_revenue"]["base"], segment["scenarios"]["base"]["recognized_revenue"])
+
     def test_tampered_forecast_is_rejected(self) -> None:
         result = forecast_result()
         tampered = copy.deepcopy(result)
@@ -42,13 +47,7 @@ class RevenueAdapterTests(unittest.TestCase):
             adapt_revenue(tampered)
 
     def test_management_target_summary_is_hashed_and_transferred(self) -> None:
-        core, _, rf_dir = revenue_runtime()
-        tests_dir = rf_dir / "tests"
-        if str(tests_dir) not in sys.path:
-            sys.path.insert(0, str(tests_dir))
-        from test_management_targets import add_target
-        from test_recognition_bridge import forecast_document
-        result = core.run_forecast(add_target(forecast_document()))
+        result = load_revenue_fixture("target")
         adapter = adapt_revenue(result)
         ref = adapter["revenue_forecast_ref"]
         self.assertEqual(ref["management_target_coverage_status"], "validated")

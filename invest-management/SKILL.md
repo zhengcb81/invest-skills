@@ -17,9 +17,10 @@ Evaluate people and decision processes from dated evidence. Keep measured capita
 
 1. Identify decision makers, board oversight, material business owners, and succession candidates as of the frozen date.
 2. Register regulatory findings, restatements, disclosure failures, related-party transactions, incentive terms, insider transactions, succession events, and prior commitments with exact locators and claims.
-3. Separate verified facts, disputed allegations, analyst interpretations, and missing evidence.
-4. Compare prior explicit commitments with later outcomes. Reference `invest-distribution` for measured allocation results.
-5. Produce mechanism-specific findings, red flags, disconfirming evidence, and unresolved questions; do not convert source confidence into a management score.
+3. Encode every factual node with checked claim IDs; orphan claims and unclaimed facts fail validation.
+4. Separate facts from interpretations. Every interpretation names input facts, contrary facts, rationale, and data gaps.
+5. Compare prior explicit commitments with later outcomes using typed commitment assessments. Reference `invest-distribution` for measured allocation results.
+6. Produce mechanism-specific findings, red flags, disconfirming evidence, and unresolved questions; do not convert source confidence into a management score.
 
 ```powershell
 python ../invest-core/scripts/invest_contracts.py finalize-draft management_draft.json --output management.json

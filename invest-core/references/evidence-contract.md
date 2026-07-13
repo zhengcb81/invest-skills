@@ -10,6 +10,8 @@ Register an HTTPS source once with source ID, type, title, publisher, URL, publi
 
 Each parameter has an ID, kind, numeric value, unit, period, definition, dimension, time basis, scenario, source IDs, and claim IDs. Facts and management guidance require exact-value evidence. Source-free analyst assumptions are allowed only with an explicit rationale and remain visible as assumptions.
 
+Monetary dimensions must carry the artifact currency and scale; non-monetary dimensions must not. Derived facts declare their input parameter IDs and formula, must be acyclic, and are recomputed by the runtime.
+
 ## Claims
 
 Each claim binds one source to one target and contains a locator, checked excerpt, excerpt hash, content hash, verifier, verification date, and `opened_and_checked` status. Exact-value claims also carry extracted value, unit, and period matching the parameter.

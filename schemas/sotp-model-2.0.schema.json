@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zhengcb81.github.io/invest-skills/schemas/sotp-model-2.0.schema.json",
+  "title": "Invest SOTP model 2.0",
+  "type": "object",
+  "required": ["sotp_model_schema_version", "aggregation_basis", "segment_selections", "ownership_parameter_templates", "company_bridge", "parameters", "sources", "evidence_claims", "limitations"],
+  "properties": {
+    "sotp_model_schema_version": {"const": "2.0"},
+    "aggregation_basis": {"enum": ["enterprise", "equity"]},
+    "segment_selections": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "object", "required": ["selection_type", "selected_value_basis"]}},
+    "ownership_parameter_templates": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string", "minLength": 1}},
+    "company_bridge": {"type": "object", "required": ["stage", "completeness_status", "adjustments", "rationale"], "properties": {"stage": {"enum": ["enterprise_to_equity", "equity_level"]}, "completeness_status": {"const": "complete"}}},
+    "security_bridge": {"type": "object"},
+    "parameters": {"type": "array", "items": {"type": "object"}},
+    "sources": {"type": "array", "items": {"type": "object"}},
+    "evidence_claims": {"type": "array", "items": {"type": "object"}},
+    "limitations": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  }
+}

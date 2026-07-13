@@ -20,6 +20,8 @@ Use this skill as shared infrastructure. Do not ask it for a company conclusion 
 - the module dependency registry;
 - generic artifact read/write and validation commands.
 
+The current contract is invest-suite `5.0.0` / artifact schema `2.0`. It also validates immutable schema `1.0` artifacts from suite `4.0.0` through `4.2.0`, but it never upgrades or silently rewrites them.
+
 Do not put profit, cash-flow, valuation, moat, management, capital-allocation, comparison, or psychology formulas in this skill.
 
 ## Resource routing
@@ -40,10 +42,12 @@ Use `scripts/invest_contracts.py` to:
 - Keep dependencies one-way: `revenue-forecast` → `invest-core` → leaf `invest-*` skills → `invest-framework` orchestration.
 - Import revenue primitives only through `invest_contracts.py`; leaf modules must not locate or import revenue scripts themselves.
 - Use exactly `low`, `base`, and `high` for scenario-bound artifacts.
+- Bind every scenario artifact to one hashed scenario manifest with explicit definitions.
 - Reject a mutated revenue result, artifact, upstream hash, identity, currency, unit, fiscal period, or scenario set.
 - Treat management revenue targets as revenue-owned facts: downstream modules may display the frozen summary but may not reinterpret, remap, or recalculate it.
 - Never convert evidence confidence into company quality or valuation.
 - Never use silent market, accounting, probability, multiple, discount-rate, or FX defaults.
+- Use the shared security bridge for diluted shares, ordinary-units-per-security, ADS ratios, and value-date FX; leaf modules must not implement their own per-share arithmetic.
 
 Validate an artifact with:
 

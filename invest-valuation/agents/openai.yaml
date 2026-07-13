@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest Valuation"
-  short_description: "从已验证营收与财务产物计算DCF、市场倍数、资产法与权益价值"
+  short_description: "Value validated financial paths with explicit timing"
   default_prompt: "Use $invest-valuation to value a validated financial forecast without rebuilding its revenue or profit paths."

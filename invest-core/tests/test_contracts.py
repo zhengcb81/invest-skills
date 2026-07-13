@@ -77,12 +77,20 @@ def evidence() -> tuple[list[dict], list[dict], list[dict]]:
     return [source], [parameter], [claim]
 
 
+def management_data() -> dict:
+    return {
+        "qualitative_schema_version": "2.0", "facts": [], "interpretations": [],
+        "commitment_assessments": [], "red_flag_interpretation_ids": [],
+        "disconfirming_fact_ids": [], "data_gaps": [],
+    }
+
+
 class ContractTests(unittest.TestCase):
     def test_create_and_validate_artifact(self) -> None:
         sources, parameters, claims = evidence()
         artifact = create_artifact(
             "management", identity(), {"type": "company", "name": "Test Co"},
-            {"integrity_events": []}, sources=sources, parameters=parameters,
+            management_data(), sources=sources, parameters=parameters,
             evidence_claims=claims, limitations=["Synthetic fixture"],
         )
         validate_artifact(artifact)
@@ -114,7 +122,7 @@ class ContractTests(unittest.TestCase):
         with self.assertRaisesRegex(InvestmentArtifactError, "exact-value claim required"):
             create_artifact(
                 "management", identity(), {"type": "company", "name": "Test Co"},
-                {}, sources=sources, parameters=parameters, evidence_claims=[],
+                management_data(), sources=sources, parameters=parameters, evidence_claims=[],
             )
 
     def test_future_source_is_rejected(self) -> None:
@@ -123,16 +131,29 @@ class ContractTests(unittest.TestCase):
         with self.assertRaisesRegex(InvestmentArtifactError, "future information leak"):
             create_artifact(
                 "management", identity(), {"type": "company", "name": "Test Co"},
-                {}, sources=sources, parameters=parameters, evidence_claims=claims,
+                management_data(), sources=sources, parameters=parameters, evidence_claims=claims,
             )
 
     def test_finalize_qualitative_draft(self) -> None:
         artifact = finalize_draft({
             "module": "management", "identity": identity(),
             "scope": {"type": "company", "name": "Test Co"},
-            "data": {"governance_events": []}, "limitations": ["Synthetic"],
+            "data": management_data(), "limitations": ["Synthetic"],
         })
         validate_artifact(artifact)
+
+    def test_management_fact_requires_checked_claim(self) -> None:
+        data = management_data()
+        data["facts"] = [{
+            "fact_id": "integrity_event_1", "fact_type": "integrity_event",
+            "statement": "The company received a regulatory sanction.",
+            "event_date": "2025-12-01", "claim_ids": [],
+        }]
+        with self.assertRaisesRegex(InvestmentArtifactError, "claim_ids must not be empty"):
+            create_artifact(
+                "management", identity(), {"type": "company", "name": "Test Co"},
+                data, limitations=["Synthetic"],
+            )
 
     def test_finalize_draft_rejects_quantitative_bypass(self) -> None:
         with self.assertRaisesRegex(InvestmentArtifactError, "restricted"):
@@ -140,6 +161,38 @@ class ContractTests(unittest.TestCase):
                 "module": "valuation", "identity": identity(),
                 "scope": {"type": "company", "name": "Test Co"}, "data": {},
             })
+
+    def test_nan_is_rejected_before_hashing(self) -> None:
+        with self.assertRaisesRegex(InvestmentArtifactError, "NaN or infinity"):
+            create_artifact(
+                "psychology", identity(), {"type": "company", "name": "Test Co"},
+                {"invalid": float("nan")}, limitations=["Synthetic"],
+            )
+
+    def test_scenario_manifest_hash_is_enforced(self) -> None:
+        artifact = create_artifact(
+            "psychology", identity(), {"type": "company", "name": "Test Co"},
+            {"answers": {}}, scenario_set=["low", "base", "high"], limitations=["Synthetic"],
+        )
+        artifact["scenario_manifest"]["scenarios"][0]["definition"] = "Tampered definition"
+        with self.assertRaisesRegex(InvestmentArtifactError, "scenario_manifest hash mismatch"):
+            validate_artifact(artifact)
+
+    def test_legacy_artifact_schema_1_golden_versions_remain_valid(self) -> None:
+        for suite_version in ("4.0.0", "4.1.0", "4.2.0"):
+            with self.subTest(suite_version=suite_version):
+                body = {
+                    "artifact_schema_version": "1.0", "invest_suite_version": suite_version,
+                    "module": "psychology", "identity": identity(),
+                    "scope": {"type": "company", "name": "Test Co"},
+                    "scenario_set": [], "revenue_forecast_ref": None,
+                    "upstream_artifacts": [], "sources": [], "parameters": [],
+                    "evidence_claims": [], "data": {"legacy_fixture": True},
+                    "limitations": ["Immutable suite-4 compatibility fixture"],
+                }
+                artifact = {**body, "artifact_id": canonical_sha256(body)}
+                artifact["artifact_sha256"] = canonical_sha256(artifact)
+                validate_artifact(artifact)
 
 
 if __name__ == "__main__":

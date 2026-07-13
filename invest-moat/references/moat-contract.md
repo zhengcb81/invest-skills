@@ -14,3 +14,5 @@ For every mechanism record:
 - current status: observed, weakening, unproven, or data gap.
 
 Keep observed facts separate from the analyst's durability assumption. Confidence describes evidence support, not investment quality.
+
+The artifact must also carry a `driver_registry` bound to the exact revenue result hash. Every mapped revenue parameter and financial line must exist in that registry. Every observed fact needs checked claim IDs, and every mechanism needs a non-empty causal chain, customer consequence, leading indicators, erosion events, and falsifiers.

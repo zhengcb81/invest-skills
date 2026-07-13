@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zhengcb81.github.io/invest-skills/schemas/financial-model-2.0.schema.json",
+  "title": "Invest financial model 2.0",
+  "type": "object",
+  "required": ["financial_model_schema_version", "scope", "model_family", "parameters", "lines", "required_outputs", "sources", "evidence_claims", "limitations"],
+  "properties": {
+    "financial_model_schema_version": {"const": "2.0"},
+    "scope": {"type": "object", "required": ["type", "name"], "properties": {"type": {"enum": ["company", "segment"]}, "name": {"type": "string", "minLength": 1}}},
+    "model_family": {"enum": ["operating_company", "bank", "insurer", "reit", "pre_revenue", "custom"]},
+    "model_family_rationale": {"type": "string", "minLength": 1},
+    "parameters": {"type": "array", "items": {"type": "object"}},
+    "lines": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/line"}},
+    "required_outputs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "accounting_identities": {"type": "array", "items": {"type": "object"}},
+    "scenario_manifest": {"type": "object"},
+    "sources": {"type": "array", "items": {"type": "object"}},
+    "evidence_claims": {"type": "array", "items": {"type": "object"}},
+    "limitations": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  },
+  "if": {"properties": {"model_family": {"const": "custom"}}},
+  "then": {"required": ["model_family_rationale"]},
+  "$defs": {
+    "line": {
+      "type": "object",
+      "required": ["line_id", "formula", "input_refs", "input_dimensions", "output_dimension", "time_basis", "metric_role", "dimension_rule"],
+      "properties": {
+        "line_id": {"type": "string", "minLength": 1}, "formula": {"type": "string", "minLength": 1},
+        "input_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "input_dimensions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "output_dimension": {"type": "string", "minLength": 1}, "time_basis": {"enum": ["annual", "point_in_time"]},
+        "metric_role": {"type": "string", "minLength": 1},
+        "dimension_rule": {"enum": ["same_as_input", "monetary_times_rate", "monetary_sum", "monetary_to_ratio", "rate_formula", "custom"]},
+        "cash_flow_basis": {"enum": ["fcff", "fcfe", "dividend", "distributable", "operating", "generic"]},
+        "dimension_rationale": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest Distribution"
-  short_description: "量化再投资、并购、分红、回购、股权融资、减值与长期稀释结果"
+  short_description: "Audit capital allocation, dilution, and per-share history"
   default_prompt: "Use $invest-distribution to audit source-linked capital allocation and per-share outcomes."

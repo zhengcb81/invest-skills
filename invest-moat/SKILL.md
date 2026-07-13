@@ -17,10 +17,11 @@ Treat a moat as a causal mechanism that changes the durability or range of an al
 
 1. Identify the economic mechanism: switching cost, network effect, cost advantage, intangible asset, efficient scale, distribution, data, or another explicit mechanism.
 2. Record the unit of competition, relevant segment, competitors, customer decision, and evidence.
-3. Map the mechanism to exact RF parameter IDs or financial line/parameter IDs already used downstream.
-4. Estimate a durability horizon or erosion condition as an assumption, not a score.
-5. Define falsifiers and observable leading indicators.
-6. Produce a `moat` artifact with the validated revenue reference; do not alter the frozen forecast artifact.
+3. Freeze a driver registry bound to the exact revenue result hash, then map the mechanism to registered RF parameter IDs or financial line/parameter IDs.
+4. Link every observed mechanism fact and contrary fact to checked evidence claims.
+5. Estimate a durability horizon or erosion condition as an assumption, not a score.
+6. Define at least one explicit falsifier and observable leading indicator per mechanism.
+7. Produce a `moat` artifact with the validated revenue reference; do not alter the frozen forecast artifact.
 
 ## Boundaries
 

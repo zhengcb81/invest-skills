@@ -18,10 +18,12 @@ Calculate value from immutable upstream artifacts. A valuation method may select
 1. Validate the financial artifact and its revenue lineage.
 2. Preserve and display the upstream management-target summary so readers can see which revenue scenario, if any, reflects each target.
 3. Register discount rates, terminal growth, multiples, balance-sheet adjustments, method weights, and other direct inputs as source-linked parameters or explicit assumptions.
-4. Select one or more methods. Each method consumes a named upstream metric.
-5. Calculate every method separately for low/base/high.
-6. Combine methods only when explicit weights sum to one. Otherwise present a range without an invented average.
-7. Run sensitivities on the material valuation parameters and disclose method limitations.
+4. Select one or more typed methods. DCF declares FCFF/FCFE basis; multiples declare PE, PS, EV/Sales, EV/EBITDA, P/FFO, P/AFFO, or justified custom taxonomy.
+5. Declare `current` versus `exit` timing and the metric period. Exit values are discounted to the information date before current balance-sheet adjustments are applied.
+6. Calculate every method separately for low/base/high, including explicit terminal/current value fields.
+7. Combine methods only when explicit weights sum to one. Otherwise present a range without an invented average.
+8. Add the shared security bridge when a per-share, ADS, or listed-currency value is required.
+9. Run declared sensitivity cases and reverse-implied multiple or terminal-growth cases; disclose method limitations.
 
 ```powershell
 python scripts/valuation_model.py financials.json valuation_input.json --output valuation.json
@@ -34,5 +36,12 @@ python scripts/valuation_model.py financials.json valuation_input.json --output 
 - Do not turn moat or management scores into automatic valuation premiums.
 - Do not reinterpret a management revenue target as a valuation assumption; consume only the already frozen scenario paths.
 - Keep enterprise-value to equity-value adjustments explicit and source linked.
+- Current adjustments must be point-in-time monetary balances measured at the valuation date.
 - Do not require current price or output buy/sell ratings, expected returns, or positions.
 - Reject missing upstream hashes, scenario mismatch, metric mismatch, direct forecast overrides, non-finite values, or artifact mutation.
+
+Validate an existing output with deterministic semantic recomputation:
+
+```powershell
+python scripts/valuation_model.py --validate-artifact valuation.json
+```

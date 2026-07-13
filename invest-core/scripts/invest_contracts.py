@@ -3,20 +3,26 @@
 from __future__ import annotations
 
 import argparse
+import ast
+import hashlib
 import importlib
 import json
 import math
 import os
 import re
+import string
 import sys
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
+from urllib.parse import urlparse
 
 
-INVEST_SUITE_VERSION = "4.2.0"
-SUPPORTED_INVEST_SUITE_VERSIONS = {"4.0.0", "4.1.0", INVEST_SUITE_VERSION}
-ARTIFACT_SCHEMA_VERSION = "1.0"
+INVEST_SUITE_VERSION = "5.0.0"
+SUPPORTED_INVEST_SUITE_VERSIONS = {"4.0.0", "4.1.0", "4.2.0", INVEST_SUITE_VERSION}
+ARTIFACT_SCHEMA_VERSION = "2.0"
+SUPPORTED_ARTIFACT_SCHEMA_VERSIONS = {"1.0", ARTIFACT_SCHEMA_VERSION}
 SCENARIOS = ("low", "base", "high")
 MODULE_REGISTRY = {
     "financials": {"requires_revenue": True, "upstream": ()},
@@ -43,6 +49,12 @@ MONETARY_DIMENSIONS = {
     "revenue", "profit", "cash_flow", "asset", "liability", "equity",
     "capex", "working_capital", "monetary_balance",
 }
+HASH_PATTERN = re.compile(r"[0-9a-f]{64}")
+FY_PATTERN = re.compile(r"FY(\d{4})")
+BLOCKED_SOURCE_HOSTS = {
+    "example.com", "www.example.com", "example.org", "www.example.org",
+    "localhost", "127.0.0.1",
+}
 TIME_BASES = {"annual", "point_in_time"}
 SUPPORT_TYPES = {"exact_value", "rationale_support", "policy_support", "qualitative_support"}
 TARGET_TYPES = {"parameter", "policy", "qualitative_assertion", "artifact_assumption"}
@@ -53,7 +65,7 @@ class InvestmentArtifactError(ValueError):
     """Raised when an investment artifact violates the shared contract."""
 
 
-def _fail(condition: bool, message: str) -> None:
+def _fail(condition: object, message: str) -> None:
     if not condition:
         raise InvestmentArtifactError(message)
 
@@ -92,38 +104,140 @@ def revenue_runtime() -> tuple[Any, Any, Path]:
     return core, report, skill_dir
 
 
+def _json_default(value: Any) -> Any:
+    raise InvestmentArtifactError(f"value is not JSON serializable: {type(value).__name__}")
+
+
 def canonical_sha256(value: Any) -> str:
-    core, _, _ = revenue_runtime()
-    return core.canonical_sha256(value)
+    """Hash canonical JSON without depending on revenue-forecast internals."""
+    _validate_finite_json(value, "hash_payload")
+    try:
+        encoded = json.dumps(
+            value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+            allow_nan=False, default=_json_default,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise InvestmentArtifactError(f"invalid canonical JSON: {exc}") from exc
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def text_sha256(value: str) -> str:
-    core, _, _ = revenue_runtime()
-    return core.text_sha256(value)
+    _fail(isinstance(value, str), "text hash input must be a string")
+    return hashlib.sha256(value.strip().encode("utf-8")).hexdigest()
 
 
-def parse_iso_date(value: Any, field: str):
-    core, _, _ = revenue_runtime()
+def parse_iso_date(value: Any, field: str) -> date:
+    _fail(isinstance(value, str) and bool(value.strip()), f"{field} must be an ISO date")
     try:
-        return core.parse_iso_date(value, field)
-    except Exception as exc:
-        raise InvestmentArtifactError(str(exc)) from exc
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise InvestmentArtifactError(f"{field} must use YYYY-MM-DD") from exc
 
 
 def finite_number(value: Any, field: str) -> float:
-    core, _, _ = revenue_runtime()
-    try:
-        return core.finite_number(value, field)
-    except Exception as exc:
-        raise InvestmentArtifactError(str(exc)) from exc
+    _fail(isinstance(value, (int, float)) and not isinstance(value, bool), f"{field} must be numeric")
+    number = float(value)
+    _fail(math.isfinite(number), f"{field} must be finite")
+    return number
+
+
+def _evaluate_formula_node(node: ast.AST, variables: dict[str, float]) -> float:
+    if isinstance(node, ast.Expression):
+        return _evaluate_formula_node(node.body, variables)
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
+        return float(node.value)
+    if isinstance(node, ast.Name):
+        _fail(node.id in variables, f"unsupported formula variable: {node.id}")
+        return variables[node.id]
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        value = _evaluate_formula_node(node.operand, variables)
+        return value if isinstance(node.op, ast.UAdd) else -value
+    if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow)):
+        left = _evaluate_formula_node(node.left, variables)
+        right = _evaluate_formula_node(node.right, variables)
+        if isinstance(node.op, ast.Add):
+            return left + right
+        if isinstance(node.op, ast.Sub):
+            return left - right
+        if isinstance(node.op, ast.Mult):
+            return left * right
+        if isinstance(node.op, ast.Div):
+            _fail(not math.isclose(right, 0.0), "formula division by zero")
+            return left / right
+        _fail(abs(right) <= 10, "formula exponent is outside safe range")
+        return left ** right
+    raise InvestmentArtifactError(f"unsupported formula node: {type(node).__name__}")
 
 
 def evaluate_formula(formula: str, inputs: list[float]) -> float:
-    core, _, _ = revenue_runtime()
+    _fail(isinstance(formula, str) and bool(formula.strip()), "formula is required")
+    _fail(len(formula) <= 500, "formula is too long")
     try:
-        return core.evaluate_derived_formula(formula, inputs)
-    except Exception as exc:
-        raise InvestmentArtifactError(str(exc)) from exc
+        parsed = ast.parse(formula, mode="eval")
+    except SyntaxError as exc:
+        raise InvestmentArtifactError("formula is not valid arithmetic") from exc
+    values = [finite_number(value, f"formula.inputs[{index}]") for index, value in enumerate(inputs)]
+    result = _evaluate_formula_node(parsed, {f"x{index}": number for index, number in enumerate(values)})
+    return finite_number(result, "formula result")
+
+
+def _validate_finite_json(value: Any, path: str) -> None:
+    if value is None or isinstance(value, (str, bool, int)):
+        return
+    if isinstance(value, float):
+        _fail(math.isfinite(value), f"{path} must not contain NaN or infinity")
+        return
+    if isinstance(value, list):
+        for index, child in enumerate(value):
+            _validate_finite_json(child, f"{path}[{index}]")
+        return
+    if isinstance(value, dict):
+        for key, child in value.items():
+            _fail(isinstance(key, str), f"{path} object keys must be strings")
+            _validate_finite_json(child, f"{path}.{key}")
+        return
+    raise InvestmentArtifactError(f"{path} contains unsupported JSON type: {type(value).__name__}")
+
+
+def valid_source_url(url: Any) -> bool:
+    if not isinstance(url, str):
+        return False
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    return parsed.scheme == "https" and bool(host) and host not in BLOCKED_SOURCE_HOSTS and "." in host
+
+
+def build_scenario_manifest(
+    scenario_set: list[str], provided: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    if not scenario_set:
+        _fail(provided is None, "non-scenario artifact cannot carry scenario_manifest")
+        return None
+    _fail(scenario_set == list(SCENARIOS), "scenario manifest requires low/base/high")
+    if provided is None:
+        provided = {
+            "scenario_manifest_version": "1.0",
+            "source": "default_label_contract",
+            "scenarios": [
+                {"scenario": scenario, "definition": f"{scenario} scenario; assumptions remain parameter-linked in the producing module."}
+                for scenario in SCENARIOS
+            ],
+        }
+    _fail(isinstance(provided, dict), "scenario_manifest must be an object")
+    payload = {key: value for key, value in provided.items() if key != "scenario_manifest_sha256"}
+    _fail(set(payload) == {"scenario_manifest_version", "source", "scenarios"}, "scenario_manifest contains unsupported or missing fields")
+    _fail(payload["scenario_manifest_version"] == "1.0", "unsupported scenario_manifest_version")
+    _fail(isinstance(payload["source"], str) and payload["source"].strip(), "scenario_manifest.source is required")
+    records = payload["scenarios"]
+    _fail(isinstance(records, list) and len(records) == len(SCENARIOS), "scenario_manifest must define low/base/high")
+    _fail([item.get("scenario") for item in records if isinstance(item, dict)] == list(SCENARIOS), "scenario_manifest order must be low/base/high")
+    for record in records:
+        _fail(isinstance(record, dict) and set(record) == {"scenario", "definition"}, "invalid scenario_manifest record")
+        _fail(isinstance(record["definition"], str) and record["definition"].strip(), f"scenario definition is required: {record['scenario']}")
+    normalized = {**payload, "scenario_manifest_sha256": canonical_sha256(payload)}
+    if "scenario_manifest_sha256" in provided:
+        _fail(provided["scenario_manifest_sha256"] == normalized["scenario_manifest_sha256"], "scenario_manifest hash mismatch")
+    return normalized
 
 
 def validate_revenue_forecast(result: dict[str, Any]) -> None:
@@ -174,54 +288,73 @@ def revenue_reference(result: dict[str, Any]) -> dict[str, Any]:
     return reference
 
 
+MANAGEMENT_TARGET_BASE_FIELDS = {
+    "target_id", "statement", "metric_name", "target_period", "raw_target_value",
+    "raw_unit", "commitment_strength", "scope", "perimeter_status",
+    "perimeter_notes", "comparison", "comparison_value", "comparison_currency",
+    "comparison_scale", "treatment", "mapped_parameter_ids", "mapped_scenarios",
+    "rationale", "source_ids", "scenario_comparison",
+}
+MANAGEMENT_TARGET_MEASUREMENT_FIELDS = {"measurement_basis", "measurement_periods", "measurement_rationale"}
+
+
+def _validate_target_summary_entry(
+    target: Any, status: str, required: bool, target_ids: set[str],
+) -> None:
+    _fail(isinstance(target, dict), "invalid management target summary entry")
+    assert isinstance(target, dict)
+    has_measurement_semantics = MANAGEMENT_TARGET_MEASUREMENT_FIELDS <= set(target)
+    if status == "legacy_measurement_semantics":
+        _fail(set(target) == MANAGEMENT_TARGET_BASE_FIELDS, "legacy management target summary has unexpected fields")
+    elif required:
+        _fail(set(target) == MANAGEMENT_TARGET_BASE_FIELDS | MANAGEMENT_TARGET_MEASUREMENT_FIELDS, "management target summary missing measurement semantics")
+    else:
+        valid_fields = {frozenset(MANAGEMENT_TARGET_BASE_FIELDS), frozenset(MANAGEMENT_TARGET_BASE_FIELDS | MANAGEMENT_TARGET_MEASUREMENT_FIELDS)}
+        _fail(frozenset(target) in valid_fields, "invalid management target summary fields")
+    target_id = target["target_id"]
+    _fail(isinstance(target_id, str) and target_id.strip() and target_id not in target_ids, "management target IDs must be unique")
+    assert isinstance(target_id, str)
+    target_ids.add(target_id)
+    if has_measurement_semantics:
+        _fail(target["measurement_basis"] in {"annual_period", "run_rate_at_period_end", "cumulative_periods", "ambiguous"}, f"invalid management target measurement basis: {target_id}")
+        _fail(isinstance(target["measurement_periods"], list), f"invalid management target measurement periods: {target_id}")
+    _fail(isinstance(target["mapped_scenarios"], list) and set(target["mapped_scenarios"]) <= set(SCENARIOS), f"invalid mapped scenarios: {target_id}")
+    comparison = target["scenario_comparison"]
+    _fail(isinstance(comparison, dict) and set(comparison) == set(target["mapped_scenarios"]), f"management target scenario comparison mismatch: {target_id}")
+    assert isinstance(comparison, dict)
+    for scenario, result in comparison.items():
+        _fail(isinstance(result, dict) and isinstance(result.get("meets_target"), bool), f"invalid management target attainment: {target_id}/{scenario}")
+
+
+def _validate_management_target_counts(ref: dict[str, Any], summary: list[Any]) -> None:
+    coverage_hash = ref.get("management_target_coverage_sha256")
+    _fail(isinstance(coverage_hash, str) and HASH_PATTERN.fullmatch(coverage_hash) is not None, "invalid management target coverage hash")
+    counts = ref.get("management_target_counts")
+    required_counts = {"communications_checked", "targets_total", "targets_modeled", "targets_unmodeled"}
+    _fail(isinstance(counts, dict) and set(counts) == required_counts, "invalid management target counts")
+    assert isinstance(counts, dict)
+    _fail(all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in counts.values()), "management target counts must be non-negative integers")
+    _fail(counts["targets_total"] == len(summary), "management target summary count mismatch")
+
+
 def _validate_management_target_reference(ref: dict[str, Any], *, required: bool) -> None:
     status = ref.get("management_target_coverage_status")
     if status is None and not required:
         return
     _fail(status in {"validated", "legacy_measurement_semantics", "legacy_not_available"}, "invalid management target coverage status")
+    assert isinstance(status, str)
     summary = ref.get("management_target_summary")
     _fail(isinstance(summary, list), "management_target_summary must be a list")
+    assert isinstance(summary, list)
     _fail(ref.get("management_target_summary_sha256") == canonical_sha256(summary), "management target summary hash mismatch")
     if status == "legacy_not_available":
         _fail(not summary, "legacy revenue reference cannot contain a management target summary")
         _fail(ref.get("management_target_counts") is None, "legacy revenue reference target counts must be null")
         return
-    coverage_hash = ref.get("management_target_coverage_sha256")
-    _fail(isinstance(coverage_hash, str) and re.fullmatch(r"[0-9a-f]{64}", coverage_hash) is not None, "invalid management target coverage hash")
-    counts = ref.get("management_target_counts")
-    required_counts = {"communications_checked", "targets_total", "targets_modeled", "targets_unmodeled"}
-    _fail(isinstance(counts, dict) and set(counts) == required_counts, "invalid management target counts")
-    _fail(all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in counts.values()), "management target counts must be non-negative integers")
-    _fail(counts["targets_total"] == len(summary), "management target summary count mismatch")
-    target_ids = set()
-    base_target_fields = {
-        "target_id", "statement", "metric_name", "target_period", "raw_target_value",
-        "raw_unit", "commitment_strength", "scope", "perimeter_status",
-        "perimeter_notes", "comparison", "comparison_value", "comparison_currency",
-        "comparison_scale", "treatment", "mapped_parameter_ids", "mapped_scenarios",
-        "rationale", "source_ids", "scenario_comparison",
-    }
-    measurement_fields = {"measurement_basis", "measurement_periods", "measurement_rationale"}
+    _validate_management_target_counts(ref, summary)
+    target_ids: set[str] = set()
     for target in summary:
-        _fail(isinstance(target, dict), "invalid management target summary entry")
-        has_measurement_semantics = measurement_fields <= set(target)
-        if status == "legacy_measurement_semantics":
-            _fail(set(target) == base_target_fields, "legacy management target summary has unexpected fields")
-        elif required:
-            _fail(set(target) == base_target_fields | measurement_fields, "management target summary missing measurement semantics")
-        else:
-            _fail(frozenset(target) in {frozenset(base_target_fields), frozenset(base_target_fields | measurement_fields)}, "invalid management target summary fields")
-        target_id = target["target_id"]
-        _fail(isinstance(target_id, str) and target_id.strip() and target_id not in target_ids, "management target IDs must be unique")
-        target_ids.add(target_id)
-        if has_measurement_semantics:
-            _fail(target["measurement_basis"] in {"annual_period", "run_rate_at_period_end", "cumulative_periods", "ambiguous"}, f"invalid management target measurement basis: {target_id}")
-            _fail(isinstance(target["measurement_periods"], list), f"invalid management target measurement periods: {target_id}")
-        _fail(isinstance(target["mapped_scenarios"], list) and set(target["mapped_scenarios"]) <= set(SCENARIOS), f"invalid mapped scenarios: {target_id}")
-        comparison = target["scenario_comparison"]
-        _fail(isinstance(comparison, dict) and set(comparison) == set(target["mapped_scenarios"]), f"management target scenario comparison mismatch: {target_id}")
-        for scenario, result in comparison.items():
-            _fail(isinstance(result, dict) and isinstance(result.get("meets_target"), bool), f"invalid management target attainment: {target_id}/{scenario}")
+        _validate_target_summary_entry(target, status, required, target_ids)
 
 
 def _normalize_revenue_reference(ref: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -256,7 +389,12 @@ def adapt_revenue(result: dict[str, Any], scope: str = "company", segment_name: 
         _fail(len(matches) == 1, f"unknown or duplicate revenue segment: {segment_name}")
         segment = matches[0]
         paths = {
-            scenario: {year: float(segment["scenarios"][scenario]["recognized_revenue"][year]) for year in years}
+            scenario: {
+                year: float(segment["scenarios"][scenario].get(
+                    "effective_revenue", segment["scenarios"][scenario]["recognized_revenue"]
+                )[year])
+                for year in years
+            }
             for scenario in SCENARIOS
         }
         scope_value = {"type": "segment", "name": segment_name}
@@ -281,7 +419,6 @@ def adapt_revenue(result: dict[str, Any], scope: str = "company", segment_name: 
 
 
 def _validate_sources(sources: Any, as_of_date: str) -> dict[str, dict[str, Any]]:
-    core, _, _ = revenue_runtime()
     _fail(isinstance(sources, list), "sources must be a list")
     as_of = parse_iso_date(as_of_date, "as_of_date")
     index: dict[str, dict[str, Any]] = {}
@@ -291,7 +428,7 @@ def _validate_sources(sources: Any, as_of_date: str) -> dict[str, dict[str, Any]
         source_id = source.get("source_id")
         _fail(isinstance(source_id, str) and source_id.strip(), f"{prefix}.source_id is required")
         _fail(source_id not in index, f"duplicate source_id: {source_id}")
-        _fail(core.valid_source_url(source.get("url")), f"invalid source URL: {source_id}")
+        _fail(valid_source_url(source.get("url")), f"invalid source URL: {source_id}")
         for field in ("source_type", "title", "publisher", "page_or_section"):
             _fail(isinstance(source.get(field), str) and source[field].strip(), f"{source_id}.{field} is required")
         published = parse_iso_date(source.get("published_date"), f"{source_id}.published_date")
@@ -309,6 +446,115 @@ def _validate_parameter_period(parameter: dict[str, Any], as_of_date: str, param
     else:
         point = parse_iso_date(period, f"{parameter_id}.period")
         _fail(point <= parse_iso_date(as_of_date, "as_of_date"), f"future point-in-time parameter: {parameter_id}")
+
+
+def _validate_identity(identity: Any, *, strict: bool, allow_mixed_fiscal_year_end: bool = False) -> dict[str, Any]:
+    _fail(isinstance(identity, dict), "identity must be an object")
+    required = {"company_name", "as_of_date", "currency", "unit", "fiscal_year_end", "base_year", "forecast_years"}
+    _fail(required <= set(identity), f"identity missing fields: {sorted(required - set(identity))}")
+    _fail(isinstance(identity["company_name"], str) and identity["company_name"].strip(), "company_name is required")
+    parse_iso_date(identity["as_of_date"], "as_of_date")
+    _fail(isinstance(identity["currency"], str) and identity["currency"].strip(), "identity.currency is required")
+    _fail(isinstance(identity["unit"], str) and identity["unit"].strip(), "identity.unit is required")
+    _fail(isinstance(identity["base_year"], int) and not isinstance(identity["base_year"], bool), "base_year must be an integer")
+    years = identity["forecast_years"]
+    _fail(isinstance(years, list) and all(isinstance(year, int) and not isinstance(year, bool) for year in years), "forecast_years must be integers")
+    if strict:
+        _fail(re.fullmatch(r"[A-Z]{3}", identity["currency"]) is not None, "identity.currency must use an uppercase ISO-style code")
+        if allow_mixed_fiscal_year_end:
+            _fail(identity["fiscal_year_end"] == "mixed", "comparison fiscal_year_end must be mixed")
+        else:
+            _fail(isinstance(identity["fiscal_year_end"], str) and re.fullmatch(r"\d{2}-\d{2}", identity["fiscal_year_end"]) is not None, "fiscal_year_end must use MM-DD")
+            try:
+                date.fromisoformat(f"2000-{identity['fiscal_year_end']}")
+            except ValueError as exc:
+                raise InvestmentArtifactError("fiscal_year_end is not a valid month/day") from exc
+        _fail(bool(years), "forecast_years must not be empty")
+        _fail(years == sorted(set(years)), "forecast_years must be unique and increasing")
+        _fail(all(year > identity["base_year"] for year in years), "forecast_years must be after base_year")
+        if identity.get("company_id") is not None:
+            _fail(isinstance(identity["company_id"], str) and identity["company_id"].strip(), "company_id must be a non-empty string")
+        security = identity.get("security")
+        if security is not None:
+            _fail(isinstance(security, dict), "identity.security must be an object")
+            _fail(isinstance(security.get("security_id"), str) and security["security_id"].strip(), "identity.security.security_id is required")
+            _fail(isinstance(security.get("security_type"), str) and security["security_type"].strip(), "identity.security.security_type is required")
+            _fail(finite_number(security.get("units_per_security"), "identity.security.units_per_security") > 0, "units_per_security must be positive")
+    return identity
+
+
+def parameter_by_id(
+    parameters: list[dict[str, Any]],
+    parameter_id: str,
+    *,
+    expected_dimensions: set[str] | None = None,
+    expected_time_bases: set[str] | None = None,
+    scenario: str | None = None,
+) -> dict[str, Any]:
+    """Resolve one validated parameter with clean errors and semantic guards."""
+    _fail(isinstance(parameter_id, str) and parameter_id.strip(), "parameter_id is required")
+    matches = [item for item in parameters if isinstance(item, dict) and item.get("parameter_id") == parameter_id]
+    _fail(len(matches) == 1, f"unknown or duplicate parameter_id: {parameter_id}")
+    parameter = matches[0]
+    if expected_dimensions is not None:
+        _fail(parameter.get("dimension") in expected_dimensions, f"parameter dimension mismatch: {parameter_id}")
+    if expected_time_bases is not None:
+        _fail(parameter.get("time_basis") in expected_time_bases, f"parameter time_basis mismatch: {parameter_id}")
+    if scenario is not None:
+        _fail(parameter.get("scenario", "shared") in {"shared", scenario}, f"parameter scenario mismatch: {parameter_id}/{scenario}")
+    finite_number(parameter.get("value"), f"{parameter_id}.value")
+    return parameter
+
+
+def render_parameter_template(template: str, scenario: str, *, year: int | None = None) -> str:
+    _fail(isinstance(template, str) and template.strip(), "parameter template is required")
+    try:
+        fields = {field for _, field, _, _ in string.Formatter().parse(template) if field is not None}
+    except ValueError as exc:
+        raise InvestmentArtifactError(f"invalid parameter template: {template}") from exc
+    _fail(fields <= {"scenario", "year"}, f"unsupported parameter template placeholder: {template}")
+    _fail("year" not in fields or year is not None, f"parameter template requires year: {template}")
+    try:
+        return template.format(scenario=scenario, year=year)
+    except (KeyError, ValueError) as exc:
+        raise InvestmentArtifactError(f"invalid parameter template: {template}") from exc
+
+
+def compute_security_value(
+    bridge: dict[str, Any] | None,
+    parameters: list[dict[str, Any]],
+    scenario: str,
+    identity: dict[str, Any],
+    equity_value: float,
+) -> dict[str, Any] | None:
+    """Convert current equity value to one listed security without recomputing valuation."""
+    if bridge is None:
+        return None
+    _fail(isinstance(bridge, dict), "security_bridge must be an object")
+    for field in ("security_id", "security_type", "listing_currency"):
+        _fail(isinstance(bridge.get(field), str) and bridge[field].strip(), f"security_bridge.{field} is required")
+    shares_id = render_parameter_template(bridge.get("diluted_share_count_parameter_template", ""), scenario)
+    units_id = render_parameter_template(bridge.get("ordinary_units_per_security_parameter_template", ""), scenario)
+    shares = parameter_by_id(parameters, shares_id, expected_dimensions={"quantity"}, expected_time_bases={"point_in_time", "annual"}, scenario=scenario)
+    units = parameter_by_id(parameters, units_id, expected_dimensions={"quantity"}, expected_time_bases={"point_in_time"}, scenario=scenario)
+    share_count = finite_number(shares["value"], f"{shares_id}.value")
+    units_per_security = finite_number(units["value"], f"{units_id}.value")
+    _fail(share_count > 0 and units_per_security > 0, "security share count and conversion ratio must be positive")
+    fx_rate = 1.0
+    if bridge["listing_currency"] == identity["currency"]:
+        _fail(bridge.get("fx_rate_parameter_template") in (None, ""), "same-currency security bridge must not carry FX")
+    else:
+        fx_id = render_parameter_template(bridge.get("fx_rate_parameter_template", ""), scenario)
+        fx = parameter_by_id(parameters, fx_id, expected_dimensions={"currency_rate"}, expected_time_bases={"point_in_time"}, scenario=scenario)
+        _fail(fx.get("period") == identity["as_of_date"], "security FX rate must be measured at value date")
+        fx_rate = finite_number(fx["value"], f"{fx_id}.value")
+        _fail(fx_rate > 0, "security FX rate must be positive")
+    return {
+        "security_id": bridge["security_id"], "security_type": bridge["security_type"],
+        "listing_currency": bridge["listing_currency"], "diluted_ordinary_units": share_count,
+        "ordinary_units_per_security": units_per_security, "fx_listing_per_model_currency": fx_rate,
+        "per_security_value_current": finite_number(equity_value, "equity_value") * units_per_security / share_count * fx_rate,
+    }
 
 
 def _validate_parameters(parameters: Any, source_index: dict[str, dict[str, Any]], identity: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -332,6 +578,9 @@ def _validate_parameters(parameters: Any, source_index: dict[str, dict[str, Any]
         if parameter["dimension"] in MONETARY_DIMENSIONS:
             _fail(parameter.get("currency") == identity["currency"], f"currency mismatch: {parameter_id}")
             _fail(parameter.get("scale") == identity["unit"], f"scale mismatch: {parameter_id}")
+        else:
+            _fail(parameter.get("currency") in (None, ""), f"non-monetary parameter cannot carry currency: {parameter_id}")
+            _fail(parameter.get("scale") in (None, ""), f"non-monetary parameter cannot carry scale: {parameter_id}")
         source_ids = parameter.get("source_ids", [])
         claim_ids = parameter.get("claim_ids", [])
         _fail(isinstance(source_ids, list) and len(source_ids) == len(set(source_ids)), f"invalid source_ids: {parameter_id}")
@@ -345,7 +594,7 @@ def _validate_parameters(parameters: Any, source_index: dict[str, dict[str, Any]
         if parameter["kind"] == "derived_fact":
             _fail(isinstance(parameter.get("formula"), str) and parameter["formula"].strip(), f"derived parameter requires formula: {parameter_id}")
             inputs = parameter.get("input_parameter_ids")
-            _fail(isinstance(inputs, list) and inputs, f"derived parameter requires inputs: {parameter_id}")
+            _fail(isinstance(inputs, list) and inputs and len(inputs) == len(set(inputs)), f"derived parameter requires unique inputs: {parameter_id}")
         normalized = dict(parameter)
         normalized["value"] = value
         normalized["scenario"] = scenario
@@ -419,6 +668,141 @@ def _validate_claims(claims: Any, source_index: dict[str, dict[str, Any]], param
     return index
 
 
+def _string_list(value: Any, field: str, *, allow_empty: bool = True) -> list[str]:
+    _fail(isinstance(value, list), f"{field} must be a list")
+    _fail(allow_empty or bool(value), f"{field} must not be empty")
+    _fail(all(isinstance(item, str) and item.strip() for item in value), f"{field} must contain non-empty strings")
+    _fail(len(value) == len(set(value)), f"{field} must contain unique values")
+    return value
+
+
+def _validate_qualitative_facts(
+    facts: Any,
+    claim_index: dict[str, dict[str, Any]],
+    as_of_date: str,
+) -> dict[str, dict[str, Any]]:
+    _fail(isinstance(facts, list), "qualitative facts must be a list")
+    fact_index: dict[str, dict[str, Any]] = {}
+    as_of = parse_iso_date(as_of_date, "as_of_date")
+    for position, fact in enumerate(facts):
+        _fail(isinstance(fact, dict), f"facts[{position}] must be an object")
+        fact_id = fact.get("fact_id")
+        _fail(isinstance(fact_id, str) and fact_id.strip() and fact_id not in fact_index, "qualitative fact IDs must be unique")
+        for field in ("fact_type", "statement"):
+            _fail(isinstance(fact.get(field), str) and fact[field].strip(), f"{fact_id}.{field} is required")
+        event_date = fact.get("event_date")
+        if event_date is not None:
+            _fail(parse_iso_date(event_date, f"{fact_id}.event_date") <= as_of, f"future qualitative fact: {fact_id}")
+        claim_ids = _string_list(fact.get("claim_ids"), f"{fact_id}.claim_ids", allow_empty=False)
+        for claim_id in claim_ids:
+            _fail(claim_id in claim_index, f"unknown qualitative claim: {fact_id}/{claim_id}")
+            claim = claim_index[claim_id]
+            _fail(claim["target_type"] == "qualitative_assertion" and claim["target_id"] == fact_id, f"qualitative claim target mismatch: {claim_id}")
+        fact_index[fact_id] = fact
+    for claim_id, claim in claim_index.items():
+        if claim["target_type"] != "qualitative_assertion":
+            continue
+        target_id = claim["target_id"]
+        _fail(target_id in fact_index, "qualitative claim targets an unregistered fact")
+        _fail(claim_id in fact_index[target_id]["claim_ids"], f"qualitative claim is not linked back from fact: {claim_id}")
+    return fact_index
+
+
+def _validate_interpretations(
+    interpretations: Any,
+    fact_index: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    _fail(isinstance(interpretations, list), "interpretations must be a list")
+    index: dict[str, dict[str, Any]] = {}
+    for position, item in enumerate(interpretations):
+        _fail(isinstance(item, dict), f"interpretations[{position}] must be an object")
+        interpretation_id = item.get("interpretation_id")
+        _fail(isinstance(interpretation_id, str) and interpretation_id.strip() and interpretation_id not in index, "interpretation IDs must be unique")
+        _fail(isinstance(item.get("statement"), str) and item["statement"].strip(), f"{interpretation_id}.statement is required")
+        fact_ids = _string_list(item.get("fact_ids"), f"{interpretation_id}.fact_ids", allow_empty=False)
+        contrary_ids = _string_list(item.get("contrary_fact_ids", []), f"{interpretation_id}.contrary_fact_ids")
+        _fail(set(fact_ids) <= set(fact_index), f"unknown interpretation fact: {interpretation_id}")
+        _fail(set(contrary_ids) <= set(fact_index), f"unknown contrary fact: {interpretation_id}")
+        _fail(not (set(fact_ids) & set(contrary_ids)), f"fact cannot be both supporting and contrary: {interpretation_id}")
+        _fail(item.get("confidence") in {"high", "medium", "low", "data_gap"}, f"invalid interpretation confidence: {interpretation_id}")
+        index[interpretation_id] = item
+    return index
+
+
+def _validate_management_data(
+    data: dict[str, Any], claim_index: dict[str, dict[str, Any]], identity: dict[str, Any], scenario_set: list[str],
+) -> None:
+    _fail(data.get("qualitative_schema_version") == "2.0", "management qualitative_schema_version must be 2.0")
+    _fail(scenario_set == [], "management artifact must be non-scenario")
+    facts = _validate_qualitative_facts(data.get("facts"), claim_index, identity["as_of_date"])
+    interpretations = _validate_interpretations(data.get("interpretations"), facts)
+    red_flags = _string_list(data.get("red_flag_interpretation_ids", []), "red_flag_interpretation_ids")
+    _fail(set(red_flags) <= set(interpretations), "red flags must reference registered interpretations")
+    disconfirming = _string_list(data.get("disconfirming_fact_ids", []), "disconfirming_fact_ids")
+    _fail(set(disconfirming) <= set(facts), "disconfirming evidence must reference registered facts")
+    _string_list(data.get("data_gaps", []), "management.data_gaps")
+    commitments = data.get("commitment_assessments", [])
+    _fail(isinstance(commitments, list), "commitment_assessments must be a list")
+    commitment_ids: set[str] = set()
+    for item in commitments:
+        _fail(isinstance(item, dict), "commitment assessment must be an object")
+        assessment_id = item.get("assessment_id")
+        _fail(isinstance(assessment_id, str) and assessment_id.strip() and assessment_id not in commitment_ids, "commitment assessment IDs must be unique")
+        commitment_ids.add(assessment_id)
+        _fail(item.get("commitment_fact_id") in facts, f"unknown commitment fact: {assessment_id}")
+        outcome_ids = _string_list(item.get("outcome_fact_ids"), f"{assessment_id}.outcome_fact_ids", allow_empty=False)
+        _fail(set(outcome_ids) <= set(facts), f"unknown commitment outcome fact: {assessment_id}")
+        _fail(isinstance(item.get("conclusion"), str) and item["conclusion"].strip(), f"commitment conclusion is required: {assessment_id}")
+
+
+def _validate_moat_data(
+    data: dict[str, Any], claim_index: dict[str, dict[str, Any]], identity: dict[str, Any], revenue_ref: dict[str, Any] | None,
+) -> None:
+    _fail(data.get("qualitative_schema_version") == "2.0", "moat qualitative_schema_version must be 2.0")
+    facts = _validate_qualitative_facts(data.get("facts"), claim_index, identity["as_of_date"])
+    registry = data.get("driver_registry")
+    _fail(isinstance(registry, dict), "moat driver_registry must be an object")
+    assert isinstance(registry, dict)
+    assert revenue_ref is not None
+    _fail(revenue_ref is not None and registry.get("revenue_result_sha256") == revenue_ref.get("result_sha256"), "moat driver registry revenue lineage mismatch")
+    revenue_ids = set(_string_list(registry.get("revenue_parameter_ids", []), "driver_registry.revenue_parameter_ids"))
+    financial_ids = set(_string_list(registry.get("financial_line_ids", []), "driver_registry.financial_line_ids"))
+    mechanisms = data.get("mechanisms")
+    _fail(isinstance(mechanisms, list) and mechanisms, "moat mechanisms must be a non-empty list")
+    assert isinstance(mechanisms, list)
+    mechanism_ids: set[str] = set()
+    for position, mechanism in enumerate(mechanisms):
+        _fail(isinstance(mechanism, dict), f"mechanisms[{position}] must be an object")
+        mechanism_id = mechanism.get("mechanism_id")
+        _fail(isinstance(mechanism_id, str) and mechanism_id.strip() and mechanism_id not in mechanism_ids, "moat mechanism IDs must be unique")
+        mechanism_ids.add(mechanism_id)
+        for field in ("mechanism_type", "business_scope", "unit_of_competition", "causal_chain", "customer_consequence"):
+            _fail(isinstance(mechanism.get(field), str) and mechanism[field].strip(), f"{mechanism_id}.{field} is required")
+        status = mechanism.get("status")
+        _fail(status in {"observed", "weakening", "unproven", "data_gap"}, f"invalid moat status: {mechanism_id}")
+        fact_ids = _string_list(mechanism.get("fact_ids", []), f"{mechanism_id}.fact_ids")
+        contrary_ids = _string_list(mechanism.get("contrary_fact_ids", []), f"{mechanism_id}.contrary_fact_ids")
+        _fail(set(fact_ids) <= set(facts) and set(contrary_ids) <= set(facts), f"unknown moat fact mapping: {mechanism_id}")
+        if status in {"observed", "weakening"}:
+            _fail(bool(fact_ids), f"observed moat mechanism requires facts: {mechanism_id}")
+        mapped_revenue = _string_list(mechanism.get("revenue_parameter_ids", []), f"{mechanism_id}.revenue_parameter_ids")
+        mapped_financial = _string_list(mechanism.get("financial_line_ids", []), f"{mechanism_id}.financial_line_ids")
+        _fail(set(mapped_revenue) <= revenue_ids, f"unknown moat revenue driver mapping: {mechanism_id}")
+        _fail(set(mapped_financial) <= financial_ids, f"unknown moat financial line mapping: {mechanism_id}")
+        if status != "data_gap":
+            _fail(bool(mapped_revenue or mapped_financial), f"moat mechanism requires a modeled driver mapping: {mechanism_id}")
+        durability = mechanism.get("durability_assumption")
+        _fail(isinstance(durability, dict), f"durability_assumption is required: {mechanism_id}")
+        for field in ("horizon", "rationale"):
+            _fail(isinstance(durability.get(field), str) and durability[field].strip(), f"{mechanism_id}.durability_assumption.{field} is required")
+        _string_list(mechanism.get("erosion_events", []), f"{mechanism_id}.erosion_events")
+        _string_list(mechanism.get("leading_indicators"), f"{mechanism_id}.leading_indicators", allow_empty=False)
+        _string_list(mechanism.get("falsifiers"), f"{mechanism_id}.falsifiers", allow_empty=False)
+    disconfirming = _string_list(data.get("disconfirming_fact_ids", []), "moat.disconfirming_fact_ids")
+    _fail(set(disconfirming) <= set(facts), "moat disconfirming evidence must reference registered facts")
+    _string_list(data.get("data_gaps", []), "moat.data_gaps")
+
+
 def artifact_reference(artifact: dict[str, Any]) -> dict[str, Any]:
     validate_artifact(artifact)
     return {
@@ -431,10 +815,11 @@ def artifact_reference(artifact: dict[str, Any]) -> dict[str, Any]:
 def create_artifact(
     module: str,
     identity: dict[str, Any],
-    scope: dict[str, str],
+    scope: dict[str, Any],
     data: dict[str, Any],
     *,
     scenario_set: list[str] | None = None,
+    scenario_manifest: dict[str, Any] | None = None,
     revenue_forecast_ref: dict[str, Any] | None = None,
     upstream_artifacts: list[dict[str, Any]] | None = None,
     sources: list[dict[str, Any]] | None = None,
@@ -444,13 +829,15 @@ def create_artifact(
 ) -> dict[str, Any]:
     _fail(module in MODULE_REGISTRY, f"unknown module: {module}")
     upstream_refs = [artifact_reference(item) for item in (upstream_artifacts or [])]
+    normalized_scenario_set = list(scenario_set or [])
     artifact_body = {
         "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
         "invest_suite_version": INVEST_SUITE_VERSION,
         "module": module,
         "identity": dict(identity),
         "scope": dict(scope),
-        "scenario_set": list(scenario_set or []),
+        "scenario_set": normalized_scenario_set,
+        "scenario_manifest": build_scenario_manifest(normalized_scenario_set, scenario_manifest),
         "revenue_forecast_ref": _normalize_revenue_reference(revenue_forecast_ref),
         "upstream_artifacts": upstream_refs,
         "sources": list(sources or []),
@@ -465,8 +852,7 @@ def create_artifact(
     return artifact
 
 
-def validate_artifact(artifact: dict[str, Any]) -> None:
-    _fail(isinstance(artifact, dict), "artifact must be an object")
+def _validate_artifact_envelope(artifact: dict[str, Any]) -> tuple[str, bool]:
     required = {
         "artifact_schema_version", "invest_suite_version", "module", "artifact_id",
         "identity", "scope", "scenario_set", "revenue_forecast_ref",
@@ -474,54 +860,107 @@ def validate_artifact(artifact: dict[str, Any]) -> None:
         "data", "limitations", "artifact_sha256",
     }
     _fail(required <= set(artifact), f"artifact missing fields: {sorted(required - set(artifact))}")
-    _fail(artifact["artifact_schema_version"] == ARTIFACT_SCHEMA_VERSION, "artifact schema version mismatch")
-    _fail(artifact["invest_suite_version"] in SUPPORTED_INVEST_SUITE_VERSIONS, "unsupported invest suite version")
+    schema_version = artifact["artifact_schema_version"]
+    suite_version = artifact["invest_suite_version"]
+    _fail(schema_version in SUPPORTED_ARTIFACT_SCHEMA_VERSIONS, "unsupported artifact schema version")
+    _fail(suite_version in SUPPORTED_INVEST_SUITE_VERSIONS, "unsupported invest suite version")
+    strict = schema_version == ARTIFACT_SCHEMA_VERSION
+    if strict:
+        _fail("scenario_manifest" in artifact, "artifact missing field: scenario_manifest")
+        _fail(suite_version == INVEST_SUITE_VERSION, "artifact schema 2.0 requires invest suite 5.0.0")
+    else:
+        _fail(suite_version != INVEST_SUITE_VERSION, "invest suite 5.0.0 requires artifact schema 2.0")
     module = artifact["module"]
     _fail(module in MODULE_REGISTRY, f"unknown module: {module}")
-    identity = artifact["identity"]
-    _fail(isinstance(identity, dict), "identity must be an object")
-    for field in ("company_name", "as_of_date", "currency", "unit", "fiscal_year_end", "base_year", "forecast_years"):
-        _fail(field in identity, f"identity missing field: {field}")
-    _fail(isinstance(identity["company_name"], str) and identity["company_name"].strip(), "company_name is required")
-    parse_iso_date(identity["as_of_date"], "as_of_date")
-    _fail(isinstance(identity["base_year"], int), "base_year must be an integer")
-    _fail(isinstance(identity["forecast_years"], list) and all(isinstance(year, int) for year in identity["forecast_years"]), "forecast_years must be integers")
-    _fail(isinstance(artifact["scope"], dict) and artifact["scope"].get("type") in {"company", "segment", "comparison"}, "invalid artifact scope")
-    if artifact["scope"]["type"] == "segment":
-        _fail(isinstance(artifact["scope"].get("name"), str) and artifact["scope"]["name"].strip(), "segment scope requires name")
-    if artifact["scope"]["type"] == "comparison":
-        names = artifact["scope"].get("names")
+    assert isinstance(module, str)
+    return module, strict
+
+
+def _validate_artifact_scope(artifact: dict[str, Any], strict: bool) -> dict[str, Any]:
+    raw_scope = artifact.get("scope")
+    identity = _validate_identity(
+        artifact["identity"], strict=strict,
+        allow_mixed_fiscal_year_end=strict and isinstance(raw_scope, dict) and raw_scope.get("type") == "comparison",
+    )
+    _fail(isinstance(raw_scope, dict) and raw_scope.get("type") in {"company", "segment", "comparison"}, "invalid artifact scope")
+    assert isinstance(raw_scope, dict)
+    if raw_scope["type"] == "segment":
+        _fail(isinstance(raw_scope.get("name"), str) and raw_scope["name"].strip(), "segment scope requires name")
+    if raw_scope["type"] == "comparison":
+        names = raw_scope.get("names")
         _fail(isinstance(names, list) and len(names) >= 2 and all(isinstance(name, str) and name.strip() for name in names), "comparison scope requires at least two names")
+        assert isinstance(names, list)
         _fail(len(names) == len(set(names)), "comparison scope names must be unique")
+    return identity
+
+
+def _validate_artifact_scenarios(artifact: dict[str, Any], strict: bool) -> list[str]:
     scenario_set = artifact["scenario_set"]
     _fail(scenario_set in ([], list(SCENARIOS)), "scenario_set must be empty or low/base/high")
-    _fail(isinstance(artifact["limitations"], list) and all(isinstance(item, str) and item.strip() for item in artifact["limitations"]), "limitations must contain strings")
+    assert isinstance(scenario_set, list)
+    if strict:
+        expected = build_scenario_manifest(scenario_set, artifact["scenario_manifest"])
+        _fail(artifact["scenario_manifest"] == expected, "scenario_manifest normalization mismatch")
+    return scenario_set
+
+
+def _validate_artifact_revenue_reference(module: str, ref: Any, strict: bool) -> None:
     registry = MODULE_REGISTRY[module]
-    ref = artifact["revenue_forecast_ref"]
     if registry["requires_revenue"]:
         _fail(isinstance(ref, dict), f"{module} requires revenue_forecast_ref")
-    if ref is not None:
-        _fail(isinstance(ref, dict), "revenue_forecast_ref must be an object or null")
-        for key in ("schema_version", "engine_version", "input_sha256", "result_sha256"):
-            _fail(isinstance(ref.get(key), str) and ref[key], f"revenue reference missing {key}")
-        _validate_management_target_reference(ref, required=artifact["invest_suite_version"] == INVEST_SUITE_VERSION)
-    upstream = artifact["upstream_artifacts"]
+    if ref is None:
+        return
+    _fail(isinstance(ref, dict), "revenue_forecast_ref must be an object or null")
+    assert isinstance(ref, dict)
+    for key in ("schema_version", "engine_version", "input_sha256", "result_sha256"):
+        _fail(isinstance(ref.get(key), str) and ref[key], f"revenue reference missing {key}")
+    _validate_management_target_reference(ref, required=strict)
+
+
+def _validate_artifact_upstream(module: str, upstream: Any) -> None:
     _fail(isinstance(upstream, list), "upstream_artifacts must be a list")
-    seen = set()
+    assert isinstance(upstream, list)
+    seen: set[tuple[Any, Any]] = set()
     for item in upstream:
         _fail(isinstance(item, dict) and set(item) == {"module", "artifact_id", "artifact_sha256"}, "invalid upstream reference")
+        assert isinstance(item, dict)
         identity_key = (item["module"], item["artifact_id"])
         _fail(identity_key not in seen, "duplicate upstream artifact reference")
         seen.add(identity_key)
-    for required_module in registry["upstream"]:
+    for required_module in cast(tuple[str, ...], MODULE_REGISTRY[module]["upstream"]):
         _fail(any(item["module"] == required_module for item in upstream), f"{module} requires upstream module: {required_module}")
-    source_index = _validate_sources(artifact["sources"], identity["as_of_date"])
-    parameter_index = _validate_parameters(artifact["parameters"], source_index, identity)
-    _validate_claims(artifact["evidence_claims"], source_index, parameter_index, identity["as_of_date"])
+
+
+def _validate_artifact_content_hashes(artifact: dict[str, Any], strict: bool) -> None:
+    if strict:
+        _fail(isinstance(artifact["artifact_id"], str) and HASH_PATTERN.fullmatch(artifact["artifact_id"]) is not None, "invalid artifact_id")
+        _fail(isinstance(artifact["artifact_sha256"], str) and HASH_PATTERN.fullmatch(artifact["artifact_sha256"]) is not None, "invalid artifact_sha256")
     expected_id = canonical_sha256({key: value for key, value in artifact.items() if key not in {"artifact_id", "artifact_sha256"}})
     _fail(artifact["artifact_id"] == expected_id, "artifact_id mismatch")
     payload = {key: value for key, value in artifact.items() if key != "artifact_sha256"}
     _fail(artifact["artifact_sha256"] == canonical_sha256(payload), "artifact hash mismatch")
+
+
+def validate_artifact(artifact: dict[str, Any]) -> None:
+    _fail(isinstance(artifact, dict), "artifact must be an object")
+    _validate_finite_json(artifact, "artifact")
+    module, strict = _validate_artifact_envelope(artifact)
+    identity = _validate_artifact_scope(artifact, strict)
+    scenario_set = _validate_artifact_scenarios(artifact, strict)
+    _fail(isinstance(artifact["limitations"], list) and all(isinstance(item, str) and item.strip() for item in artifact["limitations"]), "limitations must contain strings")
+    _fail(len(artifact["limitations"]) == len(set(artifact["limitations"])), "limitations must be unique")
+    _fail(isinstance(artifact["data"], dict), "data must be an object")
+    ref = artifact["revenue_forecast_ref"]
+    _validate_artifact_revenue_reference(module, ref, strict)
+    _validate_artifact_upstream(module, artifact["upstream_artifacts"])
+    source_index = _validate_sources(artifact["sources"], identity["as_of_date"])
+    parameter_index = _validate_parameters(artifact["parameters"], source_index, identity)
+    claim_index = _validate_claims(artifact["evidence_claims"], source_index, parameter_index, identity["as_of_date"])
+    if strict and module == "management":
+        _validate_management_data(artifact["data"], claim_index, identity, scenario_set)
+    if strict and module == "moat":
+        _validate_moat_data(artifact["data"], claim_index, identity, ref)
+    _validate_artifact_content_hashes(artifact, strict)
 
 
 def read_json(path: str | Path) -> dict[str, Any]:
@@ -546,6 +985,7 @@ def finalize_draft(draft: dict[str, Any]) -> dict[str, Any]:
     return create_artifact(
         draft["module"], draft["identity"], draft["scope"], draft["data"],
         scenario_set=draft.get("scenario_set", []),
+        scenario_manifest=draft.get("scenario_manifest"),
         revenue_forecast_ref=draft.get("revenue_forecast_ref"),
         upstream_artifacts=draft.get("upstream_artifacts", []),
         sources=draft.get("sources", []), parameters=draft.get("parameters", []),

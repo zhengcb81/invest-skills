@@ -1,6 +1,6 @@
 ---
 name: invest-distribution
-description: Analyze capital allocation from source-linked reinvestment, acquisitions, dividends, repurchases, issuance, impairments, and share-count history, while consuming financial artifacts for identity and accounting context. Use for payout, dilution, reinvestment, M&A outcomes, retained earnings, or capital-allocation discipline. Keep governance judgments in invest-management and valuation in invest-valuation.
+description: Analyze capital allocation from source-linked reinvestment, acquisitions, dividends, repurchases, issuance, impairments, and share-count history, while consuming financial artifacts for identity and accounting context. Use for payout, dilution, reinvestment, M&A outcomes, profit retained after dividends, or capital-allocation discipline. Keep governance judgments in invest-management and valuation in invest-valuation.
 ---
 
 # Invest Distribution
@@ -16,8 +16,8 @@ Measure where capital went and what happened afterward. Do not infer management 
 ## Workflow
 
 1. Freeze a consecutive historical window and define every capital-flow measure.
-2. Register net income, dividends, repurchases, issuance, acquisitions, impairments, internal reinvestment, and share count with exact-value evidence.
-3. Calculate annual and cumulative allocation metrics, dilution, payout, reinvestment, and acquisition impairment.
+2. Register net income, dividends, repurchases, issuance, acquisitions, impairments, internal reinvestment, and share count as reported or derived facts with exact-value evidence; assumptions cannot stand in for history.
+3. Calculate annual and cumulative allocation metrics, dilution, payout, reinvestment, acquisition impairment, and per-share history on one declared share-count basis.
 4. Attribute outcomes cautiously; separate operating performance, financing, valuation changes, and market beta.
 5. Deliver a `distribution` artifact and let `invest-management` reference it when assessing decision quality.
 

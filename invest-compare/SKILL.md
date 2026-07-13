@@ -17,9 +17,10 @@ Compare artifacts, not ad hoc company snippets.
 
 1. Select the module and exact metrics to compare.
 2. Validate every artifact and require compatible scenarios and forecast years.
-3. Align accounting definitions, scope, period, currency, and scale. Register any FX or scale conversion as explicit parameters.
-4. Extract metrics from artifact paths; do not rerun their upstream models.
-5. Present values, missingness, dispersion, and causal differences. Keep evidence quality separate from company quality.
+3. For every metric, declare target/source definitions, source periods by company, dimension, annual/point-in-time basis, and total/per-share value basis.
+4. Align exact definitions or document a reconciled mapping. Register FX and unit-scale conversions separately; never apply FX to non-monetary ratios.
+5. Extract metrics from complete frozen source snapshots; do not rerun their upstream models.
+6. Present values, missingness, dispersion, and causal differences. Keep evidence quality separate from company quality.
 
 ```powershell
 python scripts/compare_artifacts.py compare_input.json company_a.json company_b.json --output comparison.json
