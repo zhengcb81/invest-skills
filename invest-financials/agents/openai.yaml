@@ -1,0 +1,4 @@
+interface:
+  display_name: "Invest Financials"
+  short_description: "从已验证营收路径确定性推导利润、资本投入、资产负债与现金流"
+  default_prompt: "Use $invest-financials to build an auditable profit and cash-flow forecast from a validated revenue forecast."

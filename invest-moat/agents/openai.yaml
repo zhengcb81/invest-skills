@@ -1,0 +1,4 @@
+interface:
+  display_name: "Invest Moat"
+  short_description: "把竞争机制、耐久期、侵蚀事件和证伪条件映射到已有经营驱动"
+  default_prompt: "Use $invest-moat to map evidence-backed competitive mechanisms to existing revenue and financial drivers."

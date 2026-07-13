@@ -1,0 +1,4 @@
+interface:
+  display_name: "Invest Core"
+  short_description: "统一投资技能的契约、证据、版本、血缘、依赖与产物验证基础设施"
+  default_prompt: "Use $invest-core to validate and compose source-traceable investment-analysis artifacts."

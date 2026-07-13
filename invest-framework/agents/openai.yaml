@@ -1,0 +1,4 @@
+interface:
+  display_name: "Invest Framework"
+  short_description: "以依赖图编排营收、财务、竞争力、治理、估值、SOTP和比较模块"
+  default_prompt: "Use $invest-framework to orchestrate a source-traceable modular company analysis without duplicating leaf calculations."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Invest Management"
+  short_description: "审查管理层诚信、公司治理、激励机制、历史执行记录与继任风险"
+  default_prompt: "Use $invest-management to build a dated, evidence-linked management and governance assessment."
