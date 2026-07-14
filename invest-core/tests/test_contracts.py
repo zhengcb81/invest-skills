@@ -79,9 +79,9 @@ def evidence() -> tuple[list[dict], list[dict], list[dict]]:
 
 def management_data() -> dict:
     return {
-        "qualitative_schema_version": "2.0", "facts": [], "interpretations": [],
+        "qualitative_schema_version": "2.1", "facts": [], "interpretations": [],
         "commitment_assessments": [], "red_flag_interpretation_ids": [],
-        "disconfirming_fact_ids": [], "data_gaps": [],
+        "execution_driver_assessments": [], "disconfirming_fact_ids": [], "data_gaps": [],
     }
 
 
@@ -193,6 +193,31 @@ class ContractTests(unittest.TestCase):
                 artifact = {**body, "artifact_id": canonical_sha256(body)}
                 artifact["artifact_sha256"] = canonical_sha256(artifact)
                 validate_artifact(artifact)
+
+    def test_suite_5_0_artifact_schema_2_remains_valid(self) -> None:
+        current = create_artifact(
+            "psychology", identity(), {"type": "company", "name": "Test Co"},
+            {"legacy_fixture": True}, limitations=["Immutable suite-5.0 compatibility fixture"],
+        )
+        body = {key: value for key, value in current.items() if key not in {"artifact_id", "artifact_sha256"}}
+        body["invest_suite_version"] = "5.0.0"
+        artifact = {**body, "artifact_id": canonical_sha256(body)}
+        artifact["artifact_sha256"] = canonical_sha256(artifact)
+        validate_artifact(artifact)
+
+    def test_suite_5_0_qualitative_schema_2_remains_valid(self) -> None:
+        current = create_artifact(
+            "management", identity(), {"type": "company", "name": "Test Co"},
+            management_data(), limitations=["Immutable suite-5.0 qualitative fixture"],
+        )
+        body = {key: value for key, value in current.items() if key not in {"artifact_id", "artifact_sha256"}}
+        body["invest_suite_version"] = "5.0.0"
+        body["data"] = dict(body["data"])
+        body["data"]["qualitative_schema_version"] = "2.0"
+        body["data"].pop("execution_driver_assessments")
+        artifact = {**body, "artifact_id": canonical_sha256(body)}
+        artifact["artifact_sha256"] = canonical_sha256(artifact)
+        validate_artifact(artifact)
 
 
 if __name__ == "__main__":

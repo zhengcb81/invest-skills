@@ -18,10 +18,11 @@ Treat SOTP as a pure composition step.
 1. Validate every segment valuation artifact and its complete upstream lineage.
 2. Require identical company, information date, reporting currency/unit, fiscal years, scenario set, and revenue result hash.
 3. Require identical hashed management-target summaries across all segment valuations and report target measurement basis, perimeter, treatment, and scenario attainment or explicit non-comparability at company level.
-4. Select one explicit valuation method or an explicitly weighted method result for each segment, and declare whether all selected values are enterprise or equity values.
-5. Register ownership percentages and one complete company bridge. Enterprise selections require an enterprise-to-equity bridge; equity selections require an equity-level bridge.
-6. Calculate low/base/high ownership-adjusted segment values, company bridge, and optional shared security bridge.
-7. Report each part, ownership, adjustment, scenario total, management-target coverage, evidence, and limitations.
+4. Require identical growth-driver summary and analysis hashes across segment valuations; preserve them for framework reporting without aggregating or re-ranking drivers in SOTP.
+5. Select one explicit valuation method or an explicitly weighted method result for each segment, and declare whether all selected values are enterprise or equity values.
+6. Register ownership percentages and one complete company bridge. Enterprise selections require an enterprise-to-equity bridge; equity selections require an equity-level bridge.
+7. Calculate low/base/high ownership-adjusted segment values, company bridge, and optional shared security bridge.
+8. Report each part, ownership, adjustment, scenario total, management-target coverage, evidence, and limitations.
 
 ```powershell
 python scripts/sotp_model.py sotp_input.json valuation_a.json valuation_b.json --output sotp.json

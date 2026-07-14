@@ -19,10 +19,12 @@ from typing import Any, cast
 from urllib.parse import urlparse
 
 
-INVEST_SUITE_VERSION = "5.0.0"
-SUPPORTED_INVEST_SUITE_VERSIONS = {"4.0.0", "4.1.0", "4.2.0", INVEST_SUITE_VERSION}
+INVEST_SUITE_VERSION = "5.1.0"
+SUPPORTED_INVEST_SUITE_VERSIONS = {"4.0.0", "4.1.0", "4.2.0", "5.0.0", INVEST_SUITE_VERSION}
 ARTIFACT_SCHEMA_VERSION = "2.0"
 SUPPORTED_ARTIFACT_SCHEMA_VERSIONS = {"1.0", ARTIFACT_SCHEMA_VERSION}
+REVENUE_REFERENCE_SCHEMA_VERSION = "1.1"
+REVENUE_ADAPTER_SCHEMA_VERSION = "1.1"
 SCENARIOS = ("low", "base", "high")
 MODULE_REGISTRY = {
     "financials": {"requires_revenue": True, "upstream": ()},
@@ -248,9 +250,74 @@ def validate_revenue_forecast(result: dict[str, Any]) -> None:
         raise InvestmentArtifactError(f"invalid revenue forecast: {exc}") from exc
 
 
+GROWTH_DRIVER_SUMMARY_FIELDS = {
+    "drivers", "unattributed_company_adjustments", "reconciliation", "rationale",
+}
+GROWTH_DRIVER_ENTRY_FIELDS = {
+    "driver_id", "title", "thesis", "direction", "rank", "parameter_ids",
+    "segment_names", "causal_chain", "horizon", "persistence",
+    "persistence_rationale", "estimated_base_terminal_increment",
+    "share_of_positive_driver_increment", "evidence_status", "leading_indicators",
+    "falsifiers", "counterevidence_status", "counterevidence_rationale",
+}
+
+
+def _legacy_growth_driver_summary(schema_version: str) -> dict[str, Any]:
+    return {
+        "drivers": [],
+        "unattributed_company_adjustments": None,
+        "reconciliation": None,
+        "rationale": f"revenue-forecast schema {schema_version} predates the validated growth-driver tree",
+    }
+
+
+def _compact_growth_driver_summary(analysis: dict[str, Any]) -> dict[str, Any]:
+    top_ranks = {item["driver_id"]: item["rank"] for item in analysis["top_drivers"]}
+    headwind_ranks = {item["driver_id"]: item["rank"] for item in analysis["headwinds"]}
+    drivers = []
+    for driver in analysis["drivers"]:
+        driver_id = driver["driver_id"]
+        if driver_id in top_ranks:
+            direction = "growth"
+            rank = top_ranks[driver_id]
+        elif driver_id in headwind_ranks:
+            direction = "headwind"
+            rank = headwind_ranks[driver_id]
+        else:
+            direction = "flat"
+            rank = None
+        drivers.append({
+            "driver_id": driver_id,
+            "title": driver["title"],
+            "thesis": driver["thesis"],
+            "direction": direction,
+            "rank": rank,
+            "parameter_ids": list(driver["parameter_ids"]),
+            "segment_names": [item["segment_name"] for item in driver["segment_attribution"]],
+            "causal_chain": list(driver["causal_chain"]),
+            "horizon": dict(driver["horizon"]),
+            "persistence": driver["persistence"],
+            "persistence_rationale": driver["persistence_rationale"],
+            "estimated_base_terminal_increment": driver["estimated_base_terminal_increment"],
+            "share_of_positive_driver_increment": driver["share_of_positive_driver_increment"],
+            "evidence_status": driver["evidence_status"],
+            "leading_indicators": list(driver["leading_indicators"]),
+            "falsifiers": list(driver["falsifiers"]),
+            "counterevidence_status": driver["counterevidence_status"],
+            "counterevidence_rationale": driver["counterevidence_rationale"],
+        })
+    return {
+        "drivers": drivers,
+        "unattributed_company_adjustments": analysis["unattributed_company_adjustments"],
+        "reconciliation": dict(analysis["reconciliation"]),
+        "rationale": analysis.get("rationale"),
+    }
+
+
 def revenue_reference(result: dict[str, Any]) -> dict[str, Any]:
     validate_revenue_forecast(result)
     reference = {
+        "revenue_reference_schema_version": REVENUE_REFERENCE_SCHEMA_VERSION,
         "schema_version": result["schema_version"],
         "engine_version": result["engine_version"],
         "input_sha256": result["input_sha256"],
@@ -264,26 +331,41 @@ def revenue_reference(result: dict[str, Any]) -> dict[str, Any]:
             "management_target_summary": [],
             "management_target_summary_sha256": canonical_sha256([]),
         })
-        return reference
-    targets = []
-    retained_fields = [
-        "target_id", "statement", "metric_name", "target_period",
-        "raw_target_value", "raw_unit", "commitment_strength", "scope",
-        "perimeter_status", "perimeter_notes", "comparison",
-        "comparison_value", "comparison_currency", "comparison_scale",
-        "treatment", "mapped_parameter_ids", "mapped_scenarios", "rationale",
-        "source_ids", "scenario_comparison",
-    ]
-    if result["schema_version"] != "3.1":
-        retained_fields.extend(["measurement_basis", "measurement_periods", "measurement_rationale"])
-    for target in coverage["targets"]:
-        targets.append({field: target[field] for field in retained_fields})
+    else:
+        targets = []
+        retained_fields = [
+            "target_id", "statement", "metric_name", "target_period",
+            "raw_target_value", "raw_unit", "commitment_strength", "scope",
+            "perimeter_status", "perimeter_notes", "comparison",
+            "comparison_value", "comparison_currency", "comparison_scale",
+            "treatment", "mapped_parameter_ids", "mapped_scenarios", "rationale",
+            "source_ids", "scenario_comparison",
+        ]
+        if result["schema_version"] != "3.1":
+            retained_fields.extend(["measurement_basis", "measurement_periods", "measurement_rationale"])
+        for target in coverage["targets"]:
+            targets.append({field: target[field] for field in retained_fields})
+        reference.update({
+            "management_target_coverage_status": "validated" if result["schema_version"] != "3.1" else "legacy_measurement_semantics",
+            "management_target_coverage_sha256": canonical_sha256(coverage),
+            "management_target_counts": dict(coverage["counts"]),
+            "management_target_summary": targets,
+            "management_target_summary_sha256": canonical_sha256(targets),
+        })
+    analysis = result.get("growth_driver_analysis")
+    if analysis is None:
+        growth_summary = _legacy_growth_driver_summary(result["schema_version"])
+        growth_status = "legacy_not_available"
+        analysis_sha256 = None
+    else:
+        growth_summary = _compact_growth_driver_summary(analysis)
+        growth_status = "validated" if analysis["status"] == "modeled" else "data_gap"
+        analysis_sha256 = canonical_sha256(analysis)
     reference.update({
-        "management_target_coverage_status": "validated" if result["schema_version"] != "3.1" else "legacy_measurement_semantics",
-        "management_target_coverage_sha256": canonical_sha256(coverage),
-        "management_target_counts": dict(coverage["counts"]),
-        "management_target_summary": targets,
-        "management_target_summary_sha256": canonical_sha256(targets),
+        "growth_driver_analysis_status": growth_status,
+        "growth_driver_analysis_sha256": analysis_sha256,
+        "growth_driver_summary": growth_summary,
+        "growth_driver_summary_sha256": canonical_sha256(growth_summary),
     })
     return reference
 
@@ -357,6 +439,101 @@ def _validate_management_target_reference(ref: dict[str, Any], *, required: bool
         _validate_target_summary_entry(target, status, required, target_ids)
 
 
+def _validate_growth_driver_summary_entry(
+    driver: Any, driver_ids: set[str], ranks: dict[str, list[int]],
+) -> None:
+    _fail(isinstance(driver, dict) and set(driver) == GROWTH_DRIVER_ENTRY_FIELDS, "invalid growth driver summary fields")
+    assert isinstance(driver, dict)
+    driver_id = driver["driver_id"]
+    _fail(isinstance(driver_id, str) and driver_id.strip() and driver_id not in driver_ids, "growth driver summary IDs must be unique")
+    assert isinstance(driver_id, str)
+    driver_ids.add(driver_id)
+    for field in ("title", "thesis", "persistence", "persistence_rationale", "evidence_status", "counterevidence_status", "counterevidence_rationale"):
+        _fail(isinstance(driver[field], str) and driver[field].strip(), f"growth driver {driver_id}.{field} is required")
+    direction = driver["direction"]
+    _fail(direction in {"growth", "headwind", "flat"}, f"invalid growth driver direction: {driver_id}")
+    rank = driver["rank"]
+    if direction == "flat":
+        _fail(rank is None, f"flat growth driver cannot be ranked: {driver_id}")
+    else:
+        _fail(isinstance(rank, int) and not isinstance(rank, bool) and rank > 0, f"invalid growth driver rank: {driver_id}")
+        assert isinstance(rank, int)
+        ranks[direction].append(rank)
+    parameter_ids = _string_list(driver["parameter_ids"], f"{driver_id}.parameter_ids", allow_empty=False)
+    segment_names = _string_list(driver["segment_names"], f"{driver_id}.segment_names", allow_empty=False)
+    _fail(bool(parameter_ids) and bool(segment_names), f"growth driver mappings are required: {driver_id}")
+    _string_list(driver["causal_chain"], f"{driver_id}.causal_chain", allow_empty=False)
+    _string_list(driver["leading_indicators"], f"{driver_id}.leading_indicators", allow_empty=False)
+    _string_list(driver["falsifiers"], f"{driver_id}.falsifiers", allow_empty=False)
+    horizon = driver["horizon"]
+    _fail(isinstance(horizon, dict) and set(horizon) == {"start_year", "end_year"}, f"invalid growth driver horizon: {driver_id}")
+    assert isinstance(horizon, dict)
+    start_year = horizon["start_year"]
+    end_year = horizon["end_year"]
+    _fail(all(isinstance(value, int) and not isinstance(value, bool) for value in (start_year, end_year)) and start_year <= end_year, f"invalid growth driver horizon years: {driver_id}")
+    increment = finite_number(driver["estimated_base_terminal_increment"], f"{driver_id}.estimated_base_terminal_increment")
+    share = driver["share_of_positive_driver_increment"]
+    if share is not None:
+        normalized_share = finite_number(share, f"{driver_id}.share_of_positive_driver_increment")
+        _fail(0 <= normalized_share <= 1, f"invalid growth driver share: {driver_id}")
+    if direction == "growth":
+        _fail(increment > 0, f"growth driver increment must be positive: {driver_id}")
+    elif direction == "headwind":
+        _fail(increment < 0, f"headwind increment must be negative: {driver_id}")
+    else:
+        _fail(math.isclose(increment, 0.0, rel_tol=0, abs_tol=1e-9), f"flat driver increment must be zero: {driver_id}")
+
+
+def _validate_growth_driver_reference(ref: dict[str, Any], *, required: bool) -> None:
+    version = ref.get("revenue_reference_schema_version")
+    status = ref.get("growth_driver_analysis_status")
+    if version is None and status is None and not required:
+        return
+    _fail(version == REVENUE_REFERENCE_SCHEMA_VERSION, "unsupported revenue reference schema version")
+    _fail(status in {"validated", "data_gap", "legacy_not_available"}, "invalid growth driver analysis status")
+    summary = ref.get("growth_driver_summary")
+    _fail(isinstance(summary, dict) and set(summary) == GROWTH_DRIVER_SUMMARY_FIELDS, "invalid growth driver summary")
+    assert isinstance(summary, dict)
+    _fail(ref.get("growth_driver_summary_sha256") == canonical_sha256(summary), "growth driver summary hash mismatch")
+    analysis_sha256 = ref.get("growth_driver_analysis_sha256")
+    if status == "legacy_not_available":
+        _fail(analysis_sha256 is None, "legacy growth driver analysis hash must be null")
+    else:
+        _fail(isinstance(analysis_sha256, str) and HASH_PATTERN.fullmatch(analysis_sha256) is not None, "invalid growth driver analysis hash")
+    drivers = summary["drivers"]
+    _fail(isinstance(drivers, list), "growth_driver_summary.drivers must be a list")
+    assert isinstance(drivers, list)
+    driver_ids: set[str] = set()
+    ranks: dict[str, list[int]] = {"growth": [], "headwind": []}
+    for driver in drivers:
+        _validate_growth_driver_summary_entry(driver, driver_ids, ranks)
+    for direction, values in ranks.items():
+        _fail(sorted(values) == list(range(1, len(values) + 1)), f"growth driver {direction} ranks must be contiguous")
+    adjustment = summary["unattributed_company_adjustments"]
+    reconciliation = summary["reconciliation"]
+    rationale = summary["rationale"]
+    if status == "validated":
+        _fail(bool(drivers), "validated growth driver analysis requires drivers")
+        _fail(rationale is None or isinstance(rationale, str), "invalid growth driver rationale")
+    elif status == "data_gap":
+        _fail(not drivers, "growth driver data gap cannot contain drivers")
+        _fail(isinstance(rationale, str) and rationale.strip(), "growth driver data gap requires rationale")
+    else:
+        _fail(not drivers and adjustment is None and reconciliation is None, "legacy growth driver summary must not contain modeled values")
+        _fail(isinstance(rationale, str) and rationale.strip(), "legacy growth driver summary requires rationale")
+        return
+    normalized_adjustment = finite_number(adjustment, "growth_driver_summary.unattributed_company_adjustments")
+    required_reconciliation = {
+        "driver_attributed_segment_increment", "segment_increment_total",
+        "unattributed_company_adjustments", "company_increment_total", "difference",
+    }
+    _fail(isinstance(reconciliation, dict) and set(reconciliation) == required_reconciliation, "invalid growth driver reconciliation")
+    assert isinstance(reconciliation, dict)
+    for field, value in reconciliation.items():
+        finite_number(value, f"growth_driver_summary.reconciliation.{field}")
+    _fail(math.isclose(normalized_adjustment, float(reconciliation["unattributed_company_adjustments"]), rel_tol=0, abs_tol=1e-9), "growth driver adjustment reconciliation mismatch")
+
+
 def _normalize_revenue_reference(ref: dict[str, Any] | None) -> dict[str, Any] | None:
     if ref is None:
         return None
@@ -369,6 +546,28 @@ def _normalize_revenue_reference(ref: dict[str, Any] | None) -> dict[str, Any] |
             "management_target_summary": [],
             "management_target_summary_sha256": canonical_sha256([]),
         })
+    if "revenue_reference_schema_version" not in normalized:
+        _fail(normalized.get("schema_version") != "3.3", "revenue schema 3.3 requires growth driver reference metadata")
+        growth_summary = _legacy_growth_driver_summary(str(normalized.get("schema_version")))
+        normalized.update({
+            "revenue_reference_schema_version": REVENUE_REFERENCE_SCHEMA_VERSION,
+            "growth_driver_analysis_status": "legacy_not_available",
+            "growth_driver_analysis_sha256": None,
+            "growth_driver_summary": growth_summary,
+            "growth_driver_summary_sha256": canonical_sha256(growth_summary),
+        })
+    _validate_growth_driver_reference(normalized, required=True)
+    return normalized
+
+
+def normalize_revenue_reference(ref: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Normalize a validated legacy or current revenue reference for suite-5.1 descendants."""
+    normalized = _normalize_revenue_reference(ref)
+    if normalized is None:
+        return None
+    for key in ("schema_version", "engine_version", "input_sha256", "result_sha256"):
+        _fail(isinstance(normalized.get(key), str) and normalized[key], f"revenue reference missing {key}")
+    _validate_management_target_reference(normalized, required=True)
     return normalized
 
 
@@ -400,7 +599,7 @@ def adapt_revenue(result: dict[str, Any], scope: str = "company", segment_name: 
         scope_value = {"type": "segment", "name": segment_name}
         base_revenue = float(segment["base_revenue"])
     adapter = {
-        "adapter_schema_version": "1.0",
+        "adapter_schema_version": REVENUE_ADAPTER_SCHEMA_VERSION,
         "company_name": result["company_name"],
         "as_of_date": result["as_of_date"],
         "currency": result["currency"],
@@ -731,8 +930,10 @@ def _validate_interpretations(
 
 def _validate_management_data(
     data: dict[str, Any], claim_index: dict[str, dict[str, Any]], identity: dict[str, Any], scenario_set: list[str],
+    revenue_ref: dict[str, Any] | None, suite_version: str,
 ) -> None:
-    _fail(data.get("qualitative_schema_version") == "2.0", "management qualitative_schema_version must be 2.0")
+    expected_version = "2.1" if suite_version == INVEST_SUITE_VERSION else "2.0"
+    _fail(data.get("qualitative_schema_version") == expected_version, f"management qualitative_schema_version must be {expected_version}")
     _fail(scenario_set == [], "management artifact must be non-scenario")
     facts = _validate_qualitative_facts(data.get("facts"), claim_index, identity["as_of_date"])
     interpretations = _validate_interpretations(data.get("interpretations"), facts)
@@ -753,19 +954,69 @@ def _validate_management_data(
         outcome_ids = _string_list(item.get("outcome_fact_ids"), f"{assessment_id}.outcome_fact_ids", allow_empty=False)
         _fail(set(outcome_ids) <= set(facts), f"unknown commitment outcome fact: {assessment_id}")
         _fail(isinstance(item.get("conclusion"), str) and item["conclusion"].strip(), f"commitment conclusion is required: {assessment_id}")
+    if expected_version == "2.0":
+        return
+    execution_assessments = data.get("execution_driver_assessments", [])
+    _fail(isinstance(execution_assessments, list), "execution_driver_assessments must be a list")
+    if not execution_assessments:
+        return
+    _fail(isinstance(revenue_ref, dict), "execution driver assessments require revenue_forecast_ref")
+    assert isinstance(revenue_ref, dict)
+    growth_summary = revenue_ref.get("growth_driver_summary")
+    _fail(isinstance(growth_summary, dict), "execution driver assessments require a growth driver summary")
+    assert isinstance(growth_summary, dict)
+    available_driver_ids = {item["driver_id"] for item in growth_summary["drivers"]}
+    available_target_ids = {item["target_id"] for item in revenue_ref.get("management_target_summary", [])}
+    assessment_ids: set[str] = set()
+    required_fields = {
+        "assessment_id", "growth_driver_ids", "management_target_ids", "input_fact_ids",
+        "contrary_fact_ids", "status", "conclusion",
+    }
+    for item in execution_assessments:
+        _fail(isinstance(item, dict) and set(item) == required_fields, "invalid execution driver assessment fields")
+        assert isinstance(item, dict)
+        assessment_id = item["assessment_id"]
+        _fail(isinstance(assessment_id, str) and assessment_id.strip() and assessment_id not in assessment_ids, "execution driver assessment IDs must be unique")
+        assert isinstance(assessment_id, str)
+        assessment_ids.add(assessment_id)
+        driver_ids = _string_list(item["growth_driver_ids"], f"{assessment_id}.growth_driver_ids", allow_empty=False)
+        target_ids = _string_list(item["management_target_ids"], f"{assessment_id}.management_target_ids")
+        input_fact_ids = _string_list(item["input_fact_ids"], f"{assessment_id}.input_fact_ids")
+        contrary_fact_ids = _string_list(item["contrary_fact_ids"], f"{assessment_id}.contrary_fact_ids")
+        _fail(set(driver_ids) <= available_driver_ids, f"unknown execution growth driver mapping: {assessment_id}")
+        _fail(set(target_ids) <= available_target_ids, f"unknown execution management target mapping: {assessment_id}")
+        _fail(set(input_fact_ids) <= set(facts) and set(contrary_fact_ids) <= set(facts), f"unknown execution fact mapping: {assessment_id}")
+        _fail(not (set(input_fact_ids) & set(contrary_fact_ids)), f"execution fact cannot be both supporting and contrary: {assessment_id}")
+        status = item["status"]
+        _fail(status in {"on_track", "delayed", "off_track", "unproven", "data_gap"}, f"invalid execution driver status: {assessment_id}")
+        if status in {"on_track", "delayed", "off_track"}:
+            _fail(bool(input_fact_ids), f"execution status requires supporting facts: {assessment_id}")
+        _fail(isinstance(item["conclusion"], str) and item["conclusion"].strip(), f"execution driver conclusion is required: {assessment_id}")
 
 
 def _validate_moat_data(
     data: dict[str, Any], claim_index: dict[str, dict[str, Any]], identity: dict[str, Any], revenue_ref: dict[str, Any] | None,
+    suite_version: str,
 ) -> None:
-    _fail(data.get("qualitative_schema_version") == "2.0", "moat qualitative_schema_version must be 2.0")
+    expected_version = "2.1" if suite_version == INVEST_SUITE_VERSION else "2.0"
+    _fail(data.get("qualitative_schema_version") == expected_version, f"moat qualitative_schema_version must be {expected_version}")
     facts = _validate_qualitative_facts(data.get("facts"), claim_index, identity["as_of_date"])
     registry = data.get("driver_registry")
     _fail(isinstance(registry, dict), "moat driver_registry must be an object")
     assert isinstance(registry, dict)
     assert revenue_ref is not None
-    _fail(revenue_ref is not None and registry.get("revenue_result_sha256") == revenue_ref.get("result_sha256"), "moat driver registry revenue lineage mismatch")
-    revenue_ids = set(_string_list(registry.get("revenue_parameter_ids", []), "driver_registry.revenue_parameter_ids"))
+    if expected_version == "2.0":
+        _fail(revenue_ref is not None and registry.get("revenue_result_sha256") == revenue_ref.get("result_sha256"), "moat driver registry revenue lineage mismatch")
+        revenue_ids = set(_string_list(registry.get("revenue_parameter_ids", []), "driver_registry.revenue_parameter_ids"))
+    else:
+        _fail(set(registry) == {"growth_driver_summary_sha256", "growth_driver_ids", "financial_line_ids"}, "invalid moat driver_registry fields")
+        growth_summary = revenue_ref.get("growth_driver_summary")
+        _fail(isinstance(growth_summary, dict), "moat requires upstream growth driver summary")
+        assert isinstance(growth_summary, dict)
+        _fail(registry.get("growth_driver_summary_sha256") == revenue_ref.get("growth_driver_summary_sha256"), "moat growth driver registry lineage mismatch")
+        available_ids = {item["driver_id"] for item in growth_summary["drivers"]}
+        revenue_ids = set(_string_list(registry.get("growth_driver_ids", []), "driver_registry.growth_driver_ids"))
+        _fail(revenue_ids <= available_ids, "moat driver_registry contains unknown growth drivers")
     financial_ids = set(_string_list(registry.get("financial_line_ids", []), "driver_registry.financial_line_ids"))
     mechanisms = data.get("mechanisms")
     _fail(isinstance(mechanisms, list) and mechanisms, "moat mechanisms must be a non-empty list")
@@ -785,9 +1036,10 @@ def _validate_moat_data(
         _fail(set(fact_ids) <= set(facts) and set(contrary_ids) <= set(facts), f"unknown moat fact mapping: {mechanism_id}")
         if status in {"observed", "weakening"}:
             _fail(bool(fact_ids), f"observed moat mechanism requires facts: {mechanism_id}")
-        mapped_revenue = _string_list(mechanism.get("revenue_parameter_ids", []), f"{mechanism_id}.revenue_parameter_ids")
+        mapping_field = "growth_driver_ids" if expected_version == "2.1" else "revenue_parameter_ids"
+        mapped_revenue = _string_list(mechanism.get(mapping_field, []), f"{mechanism_id}.{mapping_field}")
         mapped_financial = _string_list(mechanism.get("financial_line_ids", []), f"{mechanism_id}.financial_line_ids")
-        _fail(set(mapped_revenue) <= revenue_ids, f"unknown moat revenue driver mapping: {mechanism_id}")
+        _fail(set(mapped_revenue) <= revenue_ids, f"unknown moat growth driver mapping: {mechanism_id}")
         _fail(set(mapped_financial) <= financial_ids, f"unknown moat financial line mapping: {mechanism_id}")
         if status != "data_gap":
             _fail(bool(mapped_revenue or mapped_financial), f"moat mechanism requires a modeled driver mapping: {mechanism_id}")
@@ -838,7 +1090,7 @@ def create_artifact(
         "scope": dict(scope),
         "scenario_set": normalized_scenario_set,
         "scenario_manifest": build_scenario_manifest(normalized_scenario_set, scenario_manifest),
-        "revenue_forecast_ref": _normalize_revenue_reference(revenue_forecast_ref),
+        "revenue_forecast_ref": normalize_revenue_reference(revenue_forecast_ref),
         "upstream_artifacts": upstream_refs,
         "sources": list(sources or []),
         "parameters": list(parameters or []),
@@ -852,7 +1104,7 @@ def create_artifact(
     return artifact
 
 
-def _validate_artifact_envelope(artifact: dict[str, Any]) -> tuple[str, bool]:
+def _validate_artifact_envelope(artifact: dict[str, Any]) -> tuple[str, bool, str]:
     required = {
         "artifact_schema_version", "invest_suite_version", "module", "artifact_id",
         "identity", "scope", "scenario_set", "revenue_forecast_ref",
@@ -867,13 +1119,14 @@ def _validate_artifact_envelope(artifact: dict[str, Any]) -> tuple[str, bool]:
     strict = schema_version == ARTIFACT_SCHEMA_VERSION
     if strict:
         _fail("scenario_manifest" in artifact, "artifact missing field: scenario_manifest")
-        _fail(suite_version == INVEST_SUITE_VERSION, "artifact schema 2.0 requires invest suite 5.0.0")
+        _fail(suite_version in {"5.0.0", INVEST_SUITE_VERSION}, "artifact schema 2.0 requires invest suite 5.0.0 or 5.1.0")
     else:
-        _fail(suite_version != INVEST_SUITE_VERSION, "invest suite 5.0.0 requires artifact schema 2.0")
+        _fail(suite_version not in {"5.0.0", INVEST_SUITE_VERSION}, "invest suite 5.x requires artifact schema 2.0")
     module = artifact["module"]
     _fail(module in MODULE_REGISTRY, f"unknown module: {module}")
     assert isinstance(module, str)
-    return module, strict
+    assert isinstance(suite_version, str)
+    return module, strict, suite_version
 
 
 def _validate_artifact_scope(artifact: dict[str, Any], strict: bool) -> dict[str, Any]:
@@ -904,7 +1157,7 @@ def _validate_artifact_scenarios(artifact: dict[str, Any], strict: bool) -> list
     return scenario_set
 
 
-def _validate_artifact_revenue_reference(module: str, ref: Any, strict: bool) -> None:
+def _validate_artifact_revenue_reference(module: str, ref: Any, strict: bool, suite_version: str) -> None:
     registry = MODULE_REGISTRY[module]
     if registry["requires_revenue"]:
         _fail(isinstance(ref, dict), f"{module} requires revenue_forecast_ref")
@@ -915,6 +1168,7 @@ def _validate_artifact_revenue_reference(module: str, ref: Any, strict: bool) ->
     for key in ("schema_version", "engine_version", "input_sha256", "result_sha256"):
         _fail(isinstance(ref.get(key), str) and ref[key], f"revenue reference missing {key}")
     _validate_management_target_reference(ref, required=strict)
+    _validate_growth_driver_reference(ref, required=suite_version == INVEST_SUITE_VERSION)
 
 
 def _validate_artifact_upstream(module: str, upstream: Any) -> None:
@@ -944,22 +1198,22 @@ def _validate_artifact_content_hashes(artifact: dict[str, Any], strict: bool) ->
 def validate_artifact(artifact: dict[str, Any]) -> None:
     _fail(isinstance(artifact, dict), "artifact must be an object")
     _validate_finite_json(artifact, "artifact")
-    module, strict = _validate_artifact_envelope(artifact)
+    module, strict, suite_version = _validate_artifact_envelope(artifact)
     identity = _validate_artifact_scope(artifact, strict)
     scenario_set = _validate_artifact_scenarios(artifact, strict)
     _fail(isinstance(artifact["limitations"], list) and all(isinstance(item, str) and item.strip() for item in artifact["limitations"]), "limitations must contain strings")
     _fail(len(artifact["limitations"]) == len(set(artifact["limitations"])), "limitations must be unique")
     _fail(isinstance(artifact["data"], dict), "data must be an object")
     ref = artifact["revenue_forecast_ref"]
-    _validate_artifact_revenue_reference(module, ref, strict)
+    _validate_artifact_revenue_reference(module, ref, strict, suite_version)
     _validate_artifact_upstream(module, artifact["upstream_artifacts"])
     source_index = _validate_sources(artifact["sources"], identity["as_of_date"])
     parameter_index = _validate_parameters(artifact["parameters"], source_index, identity)
     claim_index = _validate_claims(artifact["evidence_claims"], source_index, parameter_index, identity["as_of_date"])
     if strict and module == "management":
-        _validate_management_data(artifact["data"], claim_index, identity, scenario_set)
+        _validate_management_data(artifact["data"], claim_index, identity, scenario_set, ref, suite_version)
     if strict and module == "moat":
-        _validate_moat_data(artifact["data"], claim_index, identity, ref)
+        _validate_moat_data(artifact["data"], claim_index, identity, ref, suite_version)
     _validate_artifact_content_hashes(artifact, strict)
 
 

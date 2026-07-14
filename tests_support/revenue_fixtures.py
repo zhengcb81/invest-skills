@@ -18,6 +18,7 @@ FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
 FIXTURES = {
     "direct": "revenue-direct-3.2-v3.3.0.json",
     "effective": "revenue-effective-3.2-v3.3.0.json",
+    "growth": "revenue-growth-3.3-v3.4.0.json.gz.b64",
     "heterogeneous": "revenue-heterogeneous-3.2-v3.3.0.json.gz.b64",
     "recognition": "revenue-recognition-3.2-v3.3.0.json",
     "target": "revenue-target-3.2-v3.3.0.json",

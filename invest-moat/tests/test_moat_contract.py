@@ -17,7 +17,7 @@ from revenue_fixtures import load_revenue_fixture  # noqa: E402
 
 
 def forecast() -> dict:
-    return load_revenue_fixture("direct")
+    return load_revenue_fixture("growth")
 
 
 def draft() -> dict:
@@ -48,15 +48,15 @@ def draft() -> dict:
             "verification_status": "opened_and_checked",
         }],
         "data": {
-            "qualitative_schema_version": "2.0",
+            "qualitative_schema_version": "2.1",
             "facts": [{
                 "fact_id": "retention_fact", "fact_type": "customer_behavior",
                 "statement": "Customers showed high retention after workflow integration.",
                 "event_date": "2026-03-01", "claim_ids": ["claim_retention"],
             }],
             "driver_registry": {
-                "revenue_result_sha256": result["result_sha256"],
-                "revenue_parameter_ids": ["retention_rate"], "financial_line_ids": [],
+                "growth_driver_summary_sha256": revenue_reference(result)["growth_driver_summary_sha256"],
+                "growth_driver_ids": ["fixture_driver_Segment_A"], "financial_line_ids": [],
             },
             "mechanisms": [{
                 "mechanism_id": "switching_cost", "mechanism_type": "switching_cost",
@@ -64,7 +64,7 @@ def draft() -> dict:
                 "causal_chain": "Integration increases migration effort and reduces churn.",
                 "customer_consequence": "Replacement requires retraining and data migration.",
                 "status": "observed", "fact_ids": ["retention_fact"], "contrary_fact_ids": [],
-                "revenue_parameter_ids": ["retention_rate"], "financial_line_ids": [],
+                "growth_driver_ids": ["fixture_driver_Segment_A"], "financial_line_ids": [],
                 "durability_assumption": {"horizon": "Three years", "rationale": "Workflow depth changes gradually"},
                 "erosion_events": ["Open standard lowers migration cost"],
                 "leading_indicators": ["Cohort retention"], "falsifiers": ["Retention falls below peer median"],
@@ -82,8 +82,14 @@ class MoatContractTests(unittest.TestCase):
 
     def test_unregistered_driver_mapping_is_rejected(self) -> None:
         value = draft()
-        value["data"]["mechanisms"][0]["revenue_parameter_ids"] = ["invented_driver"]
-        with self.assertRaisesRegex(InvestmentArtifactError, "unknown moat revenue driver"):
+        value["data"]["mechanisms"][0]["growth_driver_ids"] = ["invented_driver"]
+        with self.assertRaisesRegex(InvestmentArtifactError, "unknown moat growth driver"):
+            finalize_draft(value)
+
+    def test_driver_registry_cannot_invent_growth_drivers(self) -> None:
+        value = draft()
+        value["data"]["driver_registry"]["growth_driver_ids"] = ["invented_driver"]
+        with self.assertRaisesRegex(InvestmentArtifactError, "registry contains unknown"):
             finalize_draft(value)
 
     def test_falsifier_is_mandatory(self) -> None:

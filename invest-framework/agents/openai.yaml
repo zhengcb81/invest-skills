@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest Framework"
-  short_description: "Orchestrate a frozen modular company investment analysis"
-  default_prompt: "Use $invest-framework to orchestrate a source-traceable modular company analysis without duplicating leaf calculations."
+  short_description: "Orchestrate frozen modules and revenue driver reports"
+  default_prompt: "Use $invest-framework to orchestrate validated modules and report frozen revenue growth drivers without duplicating leaf calculations."

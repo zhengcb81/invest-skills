@@ -32,6 +32,7 @@ python scripts/financial_model.py forecast.json financial_input.json --output fi
 
 - Copy revenue from the adapter exactly; never accept a revenue override.
 - Copy management-target coverage from the revenue reference exactly; never create or remap a target in this module.
+- Copy the complete revenue reference, including growth-driver hashes and summary, exactly; never use driver prose to override a revenue path.
 - Do not silently assume margins, tax, beta, WACC, capex, working capital, credit losses, or cash conversion.
 - Do not treat EBITDA, operating cash flow, free cash flow, equity cash flow, and unlevered cash flow as interchangeable.
 - Do not output a valuation, rating, price target, or position size.

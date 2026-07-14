@@ -23,12 +23,12 @@ invest-psychology is a user-state sidecar and never enters company scoring.
 |---|---|---|
 | `revenue-forecast` | revenue curves, recognition, scenarios, CAGR, management revenue-target discovery/reconciliation, revenue evidence and backtests | profit, cash flow, valuation |
 | `invest-financials` | source-linked profit and cash-flow lines derived from frozen revenue | a second revenue path |
-| `invest-moat` | competitive mechanism, durability, erosion events, references to affected model parameters | arbitrary valuation premiums |
-| `invest-management` | integrity, governance, incentives, execution, succession | capital-allocation outcome calculations |
+| `invest-moat` | competitive mechanism, durability, erosion events, references to revenue-owned growth drivers | arbitrary valuation premiums or a second driver registry |
+| `invest-management` | integrity, governance, incentives, execution, succession; checked execution facts mapped to existing drivers/targets | capital-allocation outcome calculations or revenue reforecasting |
 | `invest-distribution` | reinvestment, M&A, dividends, repurchases, dilution and measured outcomes | management integrity scoring |
 | `invest-valuation` | DCF, multiple and asset-method calculations from upstream artifacts | new revenue or profit forecasts |
 | `invest-sotp` | EV/equity-aware ownership aggregation, company bridge, and shared security bridge | segment forecasting |
-| `invest-compare` | accounting/scenario alignment and cross-company comparison | new company research |
+| `invest-compare` | accounting/scenario alignment and cross-company comparison of metrics or validated driver summaries | new company research or driver re-ranking |
 | `invest-psychology` | user-supplied bias checklist | company score, price target, or position size |
 | `invest-framework` | dependency resolution, frozen inputs, atomic execution, bundle validation and read-only reporting | leaf formulas or duplicated research |
 
@@ -44,3 +44,4 @@ Any new feature must answer:
 6. If management stated a material revenue target, does the final artifact preserve its revenue-owned perimeter, scenario mapping, and attainment without reforecasting it?
 7. Does a semantic validator independently recompute quantitative output from frozen inputs?
 8. Does every scenario-bound artifact carry the same scenario-manifest hash?
+9. If the conclusion concerns revenue growth, does it reference a revenue-owned `growth_driver_id` instead of reconstructing the causal tree downstream?

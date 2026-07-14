@@ -6,7 +6,7 @@
   "required": ["artifact_schema_version", "invest_suite_version", "module", "artifact_id", "artifact_sha256", "identity", "scope", "scenario_set", "scenario_manifest", "revenue_forecast_ref", "upstream_artifacts", "sources", "parameters", "evidence_claims", "data", "limitations"],
   "properties": {
     "artifact_schema_version": {"const": "2.0"},
-    "invest_suite_version": {"const": "5.0.0"},
+    "invest_suite_version": {"enum": ["5.0.0", "5.1.0"]},
     "module": {"enum": ["financials", "valuation", "sotp", "management", "moat", "distribution", "compare", "psychology", "framework"]},
     "artifact_id": {"$ref": "#/$defs/hash"},
     "artifact_sha256": {"$ref": "#/$defs/hash"},

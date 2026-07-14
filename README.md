@@ -2,7 +2,7 @@
 
 `invest-skills` is a deterministic, source-traceable extension layer around `revenue-forecast`. Revenue remains owned by `revenue-forecast`; this suite consumes one frozen revenue result and adds financial statements, qualitative evidence modules, valuation, SOTP, comparison, orchestration, and a user-supplied decision-process sidecar.
 
-Current release: invest-suite `5.0.0`, artifact schema `2.0`. See [COMPATIBILITY.md](COMPATIBILITY.md) and [MIGRATION.md](MIGRATION.md) before opening suite-4 artifacts or migrating an old model.
+Current release: invest-suite `5.1.0`, artifact schema `2.0`. This release consumes revenue-forecast 3.3 growth-driver trees without rebuilding revenue. See [COMPATIBILITY.md](COMPATIBILITY.md) and [MIGRATION.md](MIGRATION.md) before opening older artifacts or migrating an old model.
 
 ## Dependency graph
 
@@ -21,15 +21,15 @@ user answers only -> invest-psychology
 
 | Skill | Owns | Key hard gate |
 |---|---|---|
-| `invest-core` | identity, evidence, parameters, hashes, scenario manifest, revenue adapter, security bridge | finite JSON, immutable hashes and upstream lineage |
+| `invest-core` | identity, evidence, parameters, hashes, scenario manifest, revenue adapter, security bridge | finite JSON, immutable hashes, growth-driver reference and upstream lineage |
 | `invest-financials` | deterministic profit, balance-sheet and cash-flow lines | typed dimensions, cash-flow basis, identities, semantic recomputation |
 | `invest-valuation` | DCF, typed multiples, asset methods, sensitivity and reverse cases | metric/value/timing compatibility; exit discount before current adjustments |
 | `invest-sotp` | ownership-adjusted segment aggregation | one EV/equity basis and one complete company bridge |
-| `invest-management` | dated management and governance facts and interpretations | every fact has checked claims; interpretations cite facts |
-| `invest-moat` | competitive mechanisms, durability and falsifiers | mappings bind to one revenue result and registered drivers |
+| `invest-management` | dated management and governance facts and interpretations | execution assessments bind to existing revenue drivers, targets and checked facts |
+| `invest-moat` | competitive mechanisms, durability and falsifiers | mechanisms bind directly to revenue-owned growth-driver IDs |
 | `invest-distribution` | historical allocation flows, dilution and per-share history | reported/derived facts with exact evidence and one share basis |
-| `invest-compare` | aligned cross-company artifact comparison | metric-specific definition, period, dimension, value basis, FX and scale |
-| `invest-framework` | manifest validation, DAG orchestration, frozen bundle and report | complete segment coverage, identical scenario manifest, atomic publication |
+| `invest-compare` | aligned cross-company artifact comparison | metric alignment or read-only validated growth-driver comparison |
+| `invest-framework` | manifest validation, DAG orchestration, frozen bundle and report | exact revenue reference, driver summary, complete segment coverage and atomic publication |
 | `invest-psychology` | user-answered process checklist | no inferred answers, no score, all questions use positive polarity |
 
 ## Quick start

@@ -17,13 +17,14 @@ Calculate value from immutable upstream artifacts. A valuation method may select
 
 1. Validate the financial artifact and its revenue lineage.
 2. Preserve and display the upstream management-target summary so readers can see which revenue scenario, if any, reflects each target.
-3. Register discount rates, terminal growth, multiples, balance-sheet adjustments, method weights, and other direct inputs as source-linked parameters or explicit assumptions.
-4. Select one or more typed methods. DCF declares FCFF/FCFE basis; multiples declare PE, PS, EV/Sales, EV/EBITDA, P/FFO, P/AFFO, or justified custom taxonomy.
-5. Declare `current` versus `exit` timing and the metric period. Exit values are discounted to the information date before current balance-sheet adjustments are applied.
-6. Calculate every method separately for low/base/high, including explicit terminal/current value fields.
-7. Combine methods only when explicit weights sum to one. Otherwise present a range without an invented average.
-8. Add the shared security bridge when a per-share, ADS, or listed-currency value is required.
-9. Run declared sensitivity cases and reverse-implied multiple or terminal-growth cases; disclose method limitations.
+3. Preserve the upstream growth-driver reference exactly for lineage and reporting; do not turn a driver rank or evidence label into a multiple or discount-rate adjustment.
+4. Register discount rates, terminal growth, multiples, balance-sheet adjustments, method weights, and other direct inputs as source-linked parameters or explicit assumptions.
+5. Select one or more typed methods. DCF declares FCFF/FCFE basis; multiples declare PE, PS, EV/Sales, EV/EBITDA, P/FFO, P/AFFO, or justified custom taxonomy.
+6. Declare `current` versus `exit` timing and the metric period. Exit values are discounted to the information date before current balance-sheet adjustments are applied.
+7. Calculate every method separately for low/base/high, including explicit terminal/current value fields.
+8. Combine methods only when explicit weights sum to one. Otherwise present a range without an invented average.
+9. Add the shared security bridge when a per-share, ADS, or listed-currency value is required.
+10. Run declared sensitivity cases and reverse-implied multiple or terminal-growth cases; disclose method limitations.
 
 ```powershell
 python scripts/valuation_model.py financials.json valuation_input.json --output valuation.json

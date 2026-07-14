@@ -1,6 +1,18 @@
-# Migration from invest-suite 4.x to 5.0
+# Migration to invest-suite 5.1
 
-Version 5 is intentionally breaking because value timing, dimensional semantics, evidence completeness, and bundle reproducibility are now hard contracts.
+## From 5.0 to 5.1
+
+1. Keep suite-5.0 artifacts immutable; runtime 5.1 continues to validate artifact schema `2.0` / suite `5.0.0` under its original semantics.
+2. Rerun revenue-forecast 3.4 to obtain schema `3.3` when a validated growth-driver tree is required. Older revenue outputs remain usable but are labeled `legacy_not_available` for this capability.
+3. New revenue references and adapters use schema `1.1`; do not hand-build or edit their analysis and summary hashes.
+4. New framework bundle data uses schema `2.1` and exposes the frozen growth-driver summary in the report. A frozen revenue forecast must reproduce the complete revenue reference exactly.
+5. New moat and management qualitative data uses schema `2.1`. Replace moat-owned revenue parameter registries with revenue-owned `growth_driver_ids`; add management `execution_driver_assessments` only when they map checked facts to existing driver and target IDs.
+6. New comparison output uses schema `2.1`. Use `comparison_kind="growth_drivers"` only with validated framework bundles having identical information date, forecast horizon, currency and unit.
+7. Financials, valuation and SOTP formulas do not change. Rebuild them only to carry the new immutable revenue reference through the DAG.
+
+## From 4.x to 5.x
+
+Version 5.0 was intentionally breaking because value timing, dimensional semantics, evidence completeness, and bundle reproducibility became hard contracts.
 
 ## Required changes
 

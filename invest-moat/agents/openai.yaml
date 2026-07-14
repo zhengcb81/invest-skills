@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest Moat"
-  short_description: "Map evidenced moat mechanisms to modeled business drivers"
-  default_prompt: "Use $invest-moat to map evidence-backed competitive mechanisms to existing revenue and financial drivers."
+  short_description: "Map moat mechanisms to revenue-owned driver IDs"
+  default_prompt: "Use $invest-moat to map evidence-backed competitive mechanisms to existing revenue-owned growth drivers and financial lines."

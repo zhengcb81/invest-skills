@@ -23,12 +23,15 @@ from capital_allocation import validate_distribution_artifact  # noqa: E402
 from financial_model import validate_financial_artifact  # noqa: E402
 from invest_contracts import (  # noqa: E402
     ARTIFACT_SCHEMA_VERSION,
+    INVEST_SUITE_VERSION,
     InvestmentArtifactError,
     SCENARIOS,
     artifact_reference,
     canonical_sha256,
     create_artifact,
+    normalize_revenue_reference,
     read_json,
+    revenue_reference,
     validate_artifact,
     validate_revenue_forecast,
     write_new_json,
@@ -38,7 +41,8 @@ from valuation_model import validate_valuation_artifact  # noqa: E402
 
 
 BUNDLE_PLAN_SCHEMA_VERSION = "2.0"
-BUNDLE_DATA_SCHEMA_VERSION = "2.0"
+BUNDLE_DATA_SCHEMA_VERSION = "2.1"
+LEGACY_BUNDLE_DATA_SCHEMA_VERSION = "2.0"
 EXCLUDED_FROM_COMPANY_BUNDLE = {"compare", "psychology", "framework"}
 SEMANTIC_VALIDATORS: dict[str, Callable[[dict[str, Any]], None]] = {
     "financials": validate_financial_artifact,
@@ -63,6 +67,18 @@ def validate_module_semantics(artifact: dict[str, Any]) -> None:
 def _scope_key(artifact: dict[str, Any]) -> tuple[str, str]:
     scope = artifact["scope"]
     return scope["type"], scope.get("name", "")
+
+
+def _normalized_revenue_refs(artifacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    refs: list[dict[str, Any]] = []
+    for artifact in artifacts:
+        raw_ref = artifact["revenue_forecast_ref"]
+        if raw_ref is None:
+            continue
+        normalized = normalize_revenue_reference(raw_ref)
+        assert isinstance(normalized, dict)
+        refs.append(normalized)
+    return refs
 
 
 def _topological_order(artifacts: list[dict[str, Any]]) -> list[str]:
@@ -150,9 +166,10 @@ def _validate_bundle_inputs(artifacts: list[dict[str, Any]], plan: dict[str, Any
         _require(artifact["identity"] == identity, f"bundle identity mismatch: {artifact['module']}/{_scope_key(artifact)}")
     keys = [(artifact["module"], *_scope_key(artifact)) for artifact in artifacts]
     _require(len(keys) == len(set(keys)), "bundle contains duplicate module/scope artifacts")
-    revenue_refs = [artifact["revenue_forecast_ref"] for artifact in artifacts if artifact["revenue_forecast_ref"] is not None]
-    if revenue_refs:
-        _require(all(ref == revenue_refs[0] for ref in revenue_refs), "bundle revenue lineage mismatch")
+    raw_revenue_refs = [artifact["revenue_forecast_ref"] for artifact in artifacts if artifact["revenue_forecast_ref"] is not None]
+    if raw_revenue_refs:
+        _require(all(ref == raw_revenue_refs[0] for ref in raw_revenue_refs), "bundle revenue lineage mismatch")
+    revenue_refs = _normalized_revenue_refs(artifacts)
     scenario_manifests = [artifact.get("scenario_manifest") for artifact in artifacts if artifact["scenario_set"] and artifact.get("scenario_manifest") is not None]
     if scenario_manifests:
         _require(all(value == scenario_manifests[0] for value in scenario_manifests), "bundle scenario manifest mismatch")
@@ -173,7 +190,10 @@ def _validate_bundle_inputs(artifacts: list[dict[str, Any]], plan: dict[str, Any
     return identity, revenue_refs, missing_optional
 
 
-def _summary(artifacts: list[dict[str, Any]], plan: dict[str, Any], missing_optional: list[str]) -> dict[str, Any]:
+def _summary(
+    artifacts: list[dict[str, Any]], plan: dict[str, Any], missing_optional: list[str],
+    *, include_growth_drivers: bool = True,
+) -> dict[str, Any]:
     order = _topological_order(artifacts)
     by_id = {artifact["artifact_id"]: artifact for artifact in artifacts}
     inventory = [
@@ -185,11 +205,11 @@ def _summary(artifacts: list[dict[str, Any]], plan: dict[str, Any], missing_opti
         for index, artifact_id in enumerate(order, start=1)
     ]
     present_modules = {artifact["module"] for artifact in artifacts}
-    revenue_refs = [artifact["revenue_forecast_ref"] for artifact in artifacts if artifact["revenue_forecast_ref"] is not None]
+    revenue_refs = _normalized_revenue_refs(artifacts)
     scenario_manifests = [artifact.get("scenario_manifest") for artifact in artifacts if artifact["scenario_set"] and artifact.get("scenario_manifest") is not None]
     scenario_manifest = scenario_manifests[0] if scenario_manifests else None
     assert scenario_manifest is None or isinstance(scenario_manifest, dict)
-    return {
+    summary = {
         "company_name": artifacts[0]["identity"]["company_name"],
         "management_target_coverage_status": revenue_refs[0].get("management_target_coverage_status", "legacy_not_available") if revenue_refs else "not_applicable",
         "management_target_summary": revenue_refs[0].get("management_target_summary", []) if revenue_refs else [],
@@ -201,6 +221,20 @@ def _summary(artifacts: list[dict[str, Any]], plan: dict[str, Any], missing_opti
         "manifest_sha256": plan.get("manifest_sha256"),
         "scenario_manifest_sha256": scenario_manifest["scenario_manifest_sha256"] if scenario_manifest is not None else None,
     }
+    if include_growth_drivers:
+        summary.update({
+            "growth_driver_analysis_status": revenue_refs[0].get("growth_driver_analysis_status", "legacy_not_available") if revenue_refs else "not_applicable",
+            "growth_driver_analysis_sha256": revenue_refs[0].get("growth_driver_analysis_sha256") if revenue_refs else None,
+            "growth_driver_summary": revenue_refs[0].get("growth_driver_summary", {
+                "drivers": [], "unattributed_company_adjustments": None,
+                "reconciliation": None, "rationale": "no revenue-consuming module is present",
+            }) if revenue_refs else {
+                "drivers": [], "unattributed_company_adjustments": None,
+                "reconciliation": None, "rationale": "no revenue-consuming module is present",
+            },
+            "growth_driver_summary_sha256": revenue_refs[0].get("growth_driver_summary_sha256") if revenue_refs else None,
+        })
+    return summary
 
 
 def validate_bundle_artifact(artifact: dict[str, Any]) -> None:
@@ -209,14 +243,18 @@ def validate_bundle_artifact(artifact: dict[str, Any]) -> None:
     if artifact["artifact_schema_version"] != ARTIFACT_SCHEMA_VERSION:
         return
     data = artifact["data"]
-    _require(data.get("bundle_data_schema_version") == BUNDLE_DATA_SCHEMA_VERSION, "invalid bundle data schema")
+    expected_data_schema = BUNDLE_DATA_SCHEMA_VERSION if artifact["invest_suite_version"] == INVEST_SUITE_VERSION else LEGACY_BUNDLE_DATA_SCHEMA_VERSION
+    _require(data.get("bundle_data_schema_version") == expected_data_schema, "invalid bundle data schema")
     snapshots = data.get("artifact_snapshots")
     _require(isinstance(snapshots, list) and snapshots, "bundle must freeze artifact snapshots")
     plan = data.get("bundle_plan_snapshot")
     _validate_plan(plan)
     _, _, missing_optional = _validate_bundle_inputs(snapshots, plan)
     _require(artifact["upstream_artifacts"] == [artifact_reference(item) for item in snapshots], "bundle upstream snapshots mismatch")
-    expected_summary = _summary(snapshots, plan, missing_optional)
+    expected_summary = _summary(
+        snapshots, plan, missing_optional,
+        include_growth_drivers=expected_data_schema == BUNDLE_DATA_SCHEMA_VERSION,
+    )
     _require(data.get("summary") == expected_summary, "bundle semantic summary mismatch")
     manifest_snapshot = data.get("manifest_snapshot")
     if expected_summary["manifest_sha256"] is not None:
@@ -225,7 +263,10 @@ def validate_bundle_artifact(artifact: dict[str, Any]) -> None:
     frozen_forecast = data.get("frozen_revenue_forecast")
     if frozen_forecast is not None:
         validate_revenue_forecast(frozen_forecast)
-        _require(artifact["revenue_forecast_ref"] is not None and frozen_forecast["result_sha256"] == artifact["revenue_forecast_ref"]["result_sha256"], "bundle frozen forecast lineage mismatch")
+        if expected_data_schema == BUNDLE_DATA_SCHEMA_VERSION:
+            _require(artifact["revenue_forecast_ref"] == revenue_reference(frozen_forecast), "bundle frozen forecast reference mismatch")
+        else:
+            _require(artifact["revenue_forecast_ref"] is not None and frozen_forecast["result_sha256"] == artifact["revenue_forecast_ref"]["result_sha256"], "bundle frozen forecast lineage mismatch")
     supplemental_ids = data.get("supplemental_artifact_ids")
     _require(isinstance(supplemental_ids, list) and len(supplemental_ids) == len(set(supplemental_ids)), "invalid supplemental_artifact_ids")
     _require(set(supplemental_ids) <= {item["artifact_id"] for item in snapshots}, "unknown supplemental artifact ID")
@@ -246,7 +287,7 @@ def run_bundle(
         _require(canonical_sha256(manifest_snapshot) == plan["manifest_sha256"], "manifest_snapshot hash mismatch")
     if frozen_revenue_forecast is not None:
         validate_revenue_forecast(frozen_revenue_forecast)
-        _require(bool(revenue_refs) and frozen_revenue_forecast["result_sha256"] == revenue_refs[0]["result_sha256"], "frozen forecast lineage mismatch")
+        _require(bool(revenue_refs) and revenue_reference(frozen_revenue_forecast) == revenue_refs[0], "frozen forecast reference mismatch")
     supplemental_ids = list(supplemental_artifact_ids or [])
     _require(len(supplemental_ids) == len(set(supplemental_ids)), "supplemental artifact IDs must be unique")
     _require(set(supplemental_ids) <= {item["artifact_id"] for item in artifacts}, "unknown supplemental artifact ID")
@@ -321,6 +362,25 @@ def render_bundle_markdown(bundle: dict[str, Any]) -> str:
         lines.extend(["", "## 管理层营收目标", "", "| Target | Period | Basis | Treatment |", "|---|---|---|---|"])
         for target in targets:
             lines.append(f"| {target['target_id']} | {target['target_period']} | {target.get('measurement_basis', 'legacy')} | {target['treatment']} |")
+    growth = summary["growth_driver_summary"]
+    drivers = growth["drivers"]
+    lines.extend(["", "## 未来收入主要驱动力", ""])
+    if drivers:
+        for driver in drivers:
+            rank = f"#{driver['rank']} " if driver["rank"] is not None else ""
+            sign = "+" if driver["estimated_base_terminal_increment"] >= 0 else ""
+            lines.extend([
+                f"### {rank}{driver['title']}", "",
+                f"- 逻辑：{driver['thesis']}",
+                f"- 终年基准情景收入增量：{sign}{driver['estimated_base_terminal_increment']:.2f} {bundle['identity']['currency']} {bundle['identity']['unit']}",
+                f"- 归属分部：{', '.join(driver['segment_names'])}",
+                f"- 持续性：{driver['persistence']}；证据状态：{driver['evidence_status']}",
+                f"- 领先指标：{'; '.join(driver['leading_indicators'])}",
+                f"- 证伪条件：{'; '.join(driver['falsifiers'])}",
+                "",
+            ])
+    else:
+        lines.append(f"- {growth['rationale'] or '未形成可验证的收入增长驱动树。'}")
     lines.extend(["", "## 限制与缺口", ""])
     if bundle["limitations"]:
         lines.extend(f"- {item}" for item in bundle["limitations"])

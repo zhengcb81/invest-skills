@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import re
 import string
@@ -11,12 +12,14 @@ from pathlib import Path
 from typing import Any
 
 
-CORE_SCRIPTS = Path(__file__).resolve().parents[2] / "invest-core" / "scripts"
-if str(CORE_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(CORE_SCRIPTS))
+SUITE = Path(__file__).resolve().parents[2]
+for scripts in (SUITE / "invest-core" / "scripts", SUITE / "invest-framework" / "scripts"):
+    if str(scripts) not in sys.path:
+        sys.path.insert(0, str(scripts))
 
 from invest_contracts import (  # noqa: E402
     ARTIFACT_SCHEMA_VERSION,
+    INVEST_SUITE_VERSION,
     MONETARY_DIMENSIONS,
     PARAMETER_DIMENSIONS,
     InvestmentArtifactError,
@@ -29,9 +32,11 @@ from invest_contracts import (  # noqa: E402
     validate_artifact,
     write_new_json,
 )
+from bundle_validator import validate_bundle_artifact  # noqa: E402
 
 
-COMPARISON_MODEL_SCHEMA_VERSION = "2.0"
+COMPARISON_MODEL_SCHEMA_VERSION = "2.1"
+LEGACY_COMPARISON_MODEL_SCHEMA_VERSION = "2.0"
 
 
 def _require(condition: object, message: str) -> None:
@@ -135,24 +140,38 @@ def _normalization_factor(
     return currency_rate * scale_factor, {"currency_rate": currency_rate, "scale_factor": scale_factor}
 
 
-def _validate_model(artifacts: list[dict[str, Any]], model: dict[str, Any]) -> tuple[list[str], str | None, str]:
-    _require(model.get("comparison_model_schema_version") == COMPARISON_MODEL_SCHEMA_VERSION, "comparison_model_schema_version must be 2.0")
+def _validate_model(artifacts: list[dict[str, Any]], model: dict[str, Any]) -> tuple[list[str], str | None, str, str]:
+    model_version = model.get("comparison_model_schema_version")
+    _require(model_version in {LEGACY_COMPARISON_MODEL_SCHEMA_VERSION, COMPARISON_MODEL_SCHEMA_VERSION}, "comparison_model_schema_version must be 2.0 or 2.1")
+    comparison_kind = model.get("comparison_kind", "metrics" if model_version == LEGACY_COMPARISON_MODEL_SCHEMA_VERSION else None)
+    _require(comparison_kind in {"metrics", "growth_drivers"}, "comparison_kind must be metrics or growth_drivers")
+    assert isinstance(comparison_kind, str)
+    if comparison_kind == "growth_drivers":
+        _require(model_version == COMPARISON_MODEL_SCHEMA_VERSION, "growth driver comparison requires model schema 2.1")
     _require(isinstance(artifacts, list) and len(artifacts) >= 2, "comparison requires at least two artifacts")
     for artifact in artifacts:
         validate_artifact(artifact)
     modules = {artifact["module"] for artifact in artifacts}
     _require(len(modules) == 1 and "psychology" not in modules, "comparison artifacts must use the same fundamental module")
-    companies = [artifact["identity"]["company_name"] for artifact in artifacts]
+    if comparison_kind == "growth_drivers":
+        _require(modules == {"framework"}, "growth driver comparison requires validated framework bundles")
+        for artifact in artifacts:
+            validate_bundle_artifact(artifact)
+    companies: list[str] = [artifact["identity"]["company_name"] for artifact in artifacts]
     _require(len(companies) == len(set(companies)), "comparison companies must be unique")
-    scenario_sets = {tuple(artifact["scenario_set"]) for artifact in artifacts}
-    _require(len(scenario_sets) == 1, "comparison scenario sets mismatch")
-    scenario_set = next(iter(scenario_sets))
     scenario = model.get("scenario")
-    if scenario_set:
-        _require(scenario in scenario_set, "comparison scenario is required and must match artifacts")
-    else:
-        _require(scenario in (None, ""), "non-scenario artifacts cannot receive a comparison scenario")
+    if comparison_kind == "growth_drivers":
+        _require(scenario in (None, ""), "growth driver comparison is base-path attribution and cannot receive a scenario")
         scenario = None
+    else:
+        scenario_sets = {tuple(artifact["scenario_set"]) for artifact in artifacts}
+        _require(len(scenario_sets) == 1, "comparison scenario sets mismatch")
+        scenario_set = next(iter(scenario_sets))
+        if scenario_set:
+            _require(scenario in scenario_set, "comparison scenario is required and must match artifacts")
+        else:
+            _require(scenario in (None, ""), "non-scenario artifacts cannot receive a comparison scenario")
+            scenario = None
     if model.get("require_same_as_of", True):
         _require(len({artifact["identity"]["as_of_date"] for artifact in artifacts}) == 1, "comparison as_of_date mismatch")
     comparison_as_of = model.get("comparison_as_of_date", max(artifact["identity"]["as_of_date"] for artifact in artifacts))
@@ -161,6 +180,18 @@ def _validate_model(artifacts: list[dict[str, Any]], model: dict[str, Any]) -> t
     parse_iso_date(comparison_as_of, "comparison_as_of_date")
     for field in ("target_currency", "target_unit"):
         _require(isinstance(model.get(field), str) and model[field].strip(), f"{field} is required")
+    if comparison_kind == "growth_drivers":
+        _require(model.get("require_same_horizon", True) is True, "growth driver comparison requires the same forecast horizon")
+        _require(len({tuple(artifact["identity"]["forecast_years"]) for artifact in artifacts}) == 1, "growth driver comparison horizon mismatch")
+        _require(all(artifact["identity"]["currency"] == model["target_currency"] for artifact in artifacts), "growth driver comparison currency mismatch")
+        _require(all(artifact["identity"]["unit"] == model["target_unit"] for artifact in artifacts), "growth driver comparison unit mismatch")
+        for artifact in artifacts:
+            summary = artifact["data"]["summary"]
+            _require(isinstance(summary.get("growth_driver_summary"), dict), "framework bundle lacks growth driver summary")
+            _require(summary.get("growth_driver_summary_sha256") is not None, "framework bundle lacks growth driver summary hash")
+            _require(summary.get("growth_driver_analysis_status") in {"validated", "data_gap"}, "framework bundle lacks current growth driver analysis")
+        assert scenario is None
+        return companies, scenario, comparison_as_of, comparison_kind
     metrics = model.get("metrics")
     _require(isinstance(metrics, list) and metrics, "comparison metrics must be a non-empty list")
     assert isinstance(metrics, list)
@@ -171,7 +202,8 @@ def _validate_model(artifacts: list[dict[str, Any]], model: dict[str, Any]) -> t
         _require(metric.get("metric_id") not in metric_ids, "comparison metric_id must be unique")
         _validate_metric(metric, artifacts, companies)
         metric_ids.add(metric["metric_id"])
-    return companies, scenario, comparison_as_of
+    assert scenario is None or isinstance(scenario, str)
+    return companies, scenario, comparison_as_of, comparison_kind
 
 
 def _calculate_rows(artifacts: list[dict[str, Any]], model: dict[str, Any], scenario: str | None, comparison_as_of: str) -> list[dict[str, Any]]:
@@ -196,31 +228,59 @@ def _calculate_rows(artifacts: list[dict[str, Any]], model: dict[str, Any], scen
     return rows
 
 
+def _calculate_growth_driver_rows(artifacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows = []
+    for artifact in artifacts:
+        summary = artifact["data"]["summary"]
+        rows.append({
+            "company_name": artifact["identity"]["company_name"],
+            "source_artifact_id": artifact["artifact_id"],
+            "growth_driver_analysis_status": summary["growth_driver_analysis_status"],
+            "growth_driver_analysis_sha256": summary["growth_driver_analysis_sha256"],
+            "growth_driver_summary_sha256": summary["growth_driver_summary_sha256"],
+            "growth_driver_summary": copy.deepcopy(summary["growth_driver_summary"]),
+        })
+    return rows
+
+
 def validate_comparison_artifact(artifact: dict[str, Any]) -> None:
     validate_artifact(artifact)
     _require(artifact["module"] == "compare", "expected comparison artifact")
     if artifact["artifact_schema_version"] != ARTIFACT_SCHEMA_VERSION:
         return
     data = artifact["data"]
-    _require(data.get("comparison_model_schema_version") == COMPARISON_MODEL_SCHEMA_VERSION, "invalid comparison model schema")
+    expected_version = COMPARISON_MODEL_SCHEMA_VERSION if artifact["invest_suite_version"] == INVEST_SUITE_VERSION else LEGACY_COMPARISON_MODEL_SCHEMA_VERSION
+    _require(data.get("comparison_model_schema_version") == expected_version, "invalid comparison model schema")
+    comparison_kind = data.get("comparison_kind", "metrics" if expected_version == LEGACY_COMPARISON_MODEL_SCHEMA_VERSION else None)
+    _require(comparison_kind in {"metrics", "growth_drivers"}, "invalid comparison kind")
     snapshots = data.get("source_artifact_snapshots")
     _require(isinstance(snapshots, list) and len(snapshots) >= 2, "comparison artifact must freeze source artifacts")
     model = {
         "comparison_model_schema_version": data["comparison_model_schema_version"],
+        "comparison_kind": comparison_kind,
         "target_currency": artifact["identity"]["currency"], "target_unit": artifact["identity"]["unit"],
         "require_same_as_of": data["require_same_as_of"], "comparison_as_of_date": artifact["identity"]["as_of_date"],
-        "scenario": data.get("scenario"), "metrics": data["metrics"],
+        "require_same_horizon": data.get("require_same_horizon", True),
+        "scenario": data.get("scenario"), "metrics": data.get("metrics", []),
         "normalizations": data.get("normalizations", {}), "parameters": artifact["parameters"],
     }
-    _, scenario, comparison_as_of = _validate_model(snapshots, model)
+    _, scenario, comparison_as_of, _ = _validate_model(snapshots, model)
     _require(artifact["upstream_artifacts"] == [artifact_reference(item) for item in snapshots], "comparison upstream snapshots mismatch")
-    expected = _calculate_rows(snapshots, model, scenario, comparison_as_of)
+    expected = (
+        _calculate_growth_driver_rows(snapshots)
+        if comparison_kind == "growth_drivers"
+        else _calculate_rows(snapshots, model, scenario, comparison_as_of)
+    )
     _require(data.get("rows") == expected, "comparison semantic recomputation mismatch")
 
 
 def run_comparison(artifacts: list[dict[str, Any]], model: dict[str, Any]) -> dict[str, Any]:
-    companies, scenario, comparison_as_of = _validate_model(artifacts, model)
-    rows = _calculate_rows(artifacts, model, scenario, comparison_as_of)
+    companies, scenario, comparison_as_of, comparison_kind = _validate_model(artifacts, model)
+    rows = (
+        _calculate_growth_driver_rows(artifacts)
+        if comparison_kind == "growth_drivers"
+        else _calculate_rows(artifacts, model, scenario, comparison_as_of)
+    )
     all_forecast_years = sorted({year for artifact in artifacts for year in artifact["identity"]["forecast_years"]})
     base_year = min(artifact["identity"]["base_year"] for artifact in artifacts)
     forecast_years = [year for year in all_forecast_years if year > base_year]
@@ -232,14 +292,17 @@ def run_comparison(artifacts: list[dict[str, Any]], model: dict[str, Any]) -> di
     }
     data = {
         "comparison_model_schema_version": COMPARISON_MODEL_SCHEMA_VERSION,
+        "comparison_kind": comparison_kind,
         "source_module": artifacts[0]["module"], "scenario": scenario,
         "require_same_as_of": model.get("require_same_as_of", True),
-        "metrics": model["metrics"], "normalizations": model.get("normalizations", {}),
+        "require_same_horizon": model.get("require_same_horizon", True),
+        "metrics": model.get("metrics", []), "normalizations": model.get("normalizations", {}),
         "source_artifact_snapshots": artifacts, "rows": rows,
     }
+    scenario_set = [] if comparison_kind == "growth_drivers" else list(artifacts[0]["scenario_set"])
     artifact = create_artifact(
         "compare", identity, {"type": "comparison", "names": sorted(companies)}, data,
-        scenario_set=list(artifacts[0]["scenario_set"]), upstream_artifacts=artifacts,
+        scenario_set=scenario_set, upstream_artifacts=artifacts,
         sources=model.get("sources", []), parameters=model.get("parameters", []),
         evidence_claims=model.get("evidence_claims", []), limitations=model.get("limitations", []),
     )

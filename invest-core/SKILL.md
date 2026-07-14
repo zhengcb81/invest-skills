@@ -17,10 +17,11 @@ Use this skill as shared infrastructure. Do not ask it for a company conclusion 
 - the versioned investment artifact contract;
 - common company, period, scenario, source, claim, parameter, hash, and upstream-lineage validation;
 - immutable transfer of revenue-forecast's validated management-target coverage, target perimeter, scenario mapping, and attainment summary;
+- immutable transfer of revenue-forecast's complete growth-driver analysis hash and compact, ranked driver summary;
 - the module dependency registry;
 - generic artifact read/write and validation commands.
 
-The current contract is invest-suite `5.0.0` / artifact schema `2.0`. It also validates immutable schema `1.0` artifacts from suite `4.0.0` through `4.2.0`, but it never upgrades or silently rewrites them.
+The current contract is invest-suite `5.1.0` / artifact schema `2.0`, revenue reference `1.1`, and revenue adapter `1.1`. It also validates immutable schema `2.0` artifacts from suite `5.0.0` and schema `1.0` artifacts from suite `4.0.0` through `4.2.0`, but it never upgrades or silently rewrites them.
 
 Do not put profit, cash-flow, valuation, moat, management, capital-allocation, comparison, or psychology formulas in this skill.
 
@@ -45,6 +46,7 @@ Use `scripts/invest_contracts.py` to:
 - Bind every scenario artifact to one hashed scenario manifest with explicit definitions.
 - Reject a mutated revenue result, artifact, upstream hash, identity, currency, unit, fiscal period, or scenario set.
 - Treat management revenue targets as revenue-owned facts: downstream modules may display the frozen summary but may not reinterpret, remap, or recalculate it.
+- Treat growth drivers as revenue-owned causal and quantitative objects: downstream modules may display or reference stable driver IDs, but may not edit the summary, re-rank drivers, or create another revenue attribution.
 - Never convert evidence confidence into company quality or valuation.
 - Never use silent market, accounting, probability, multiple, discount-rate, or FX defaults.
 - Use the shared security bridge for diluted shares, ordinary-units-per-security, ADS ratios, and value-date FX; leaf modules must not implement their own per-share arithmetic.

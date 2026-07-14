@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.1.0 - 2026-07-14
+
+- Added revenue reference and adapter schema 1.1 with separate hashes for the complete revenue-owned growth-driver analysis and its compact downstream summary.
+- Added explicit `validated`, `data_gap`, and `legacy_not_available` driver states; revenue schema 3.3 cannot silently omit growth-driver metadata.
+- Upgraded framework bundle data to 2.1, enforced exact frozen-forecast/reference equality, and added a concise growth-driver section to the read-only report.
+- Upgraded moat and management qualitative contracts to 2.1 so mechanisms and execution assessments reuse revenue-owned driver IDs instead of recreating revenue registries.
+- Added comparison model 2.1 `growth_drivers` mode over validated framework bundles with hard information-date, horizon, currency and unit alignment.
+- Preserved immutable validation for suite 5.0 artifact schema 2.0 and suite 4.0-4.2 artifact schema 1.0. Financial, valuation and SOTP formulas are unchanged.
+
 ## 5.0.0 - 2026-07-13
 
 - Introduced artifact schema 2.0 with strict finite JSON, typed identity and period rules, hashed scenario manifests, complete frozen snapshots, and semantic recalculation validators.

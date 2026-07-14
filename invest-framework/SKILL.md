@@ -18,7 +18,7 @@ Run a dependency graph, not a monolithic scorecard.
 
 1. Freeze company identity, `as_of_date`, reporting currency/unit, fiscal calendar, base year, and forecast years.
 2. Run `revenue-forecast` first whenever any requested module depends on future revenue. Preserve its complete validated result.
-3. Verify that management communication coverage is validated and that every material revenue target is either mapped to a scenario or exposed as an explicit data gap before launching descendants.
+3. Verify management communication coverage and the revenue-owned growth-driver analysis. Every material target must be mapped or exposed as a data gap; every downstream revenue-growth statement must reuse a frozen `growth_driver_id`.
 4. Route requested work to leaf owners:
    - profit and cash flow → `invest-financials`;
    - competitive durability → `invest-moat`;
@@ -29,9 +29,9 @@ Run a dependency graph, not a monolithic scorecard.
    - peer comparison → `invest-compare` after company artifacts exist.
 5. Never ask a downstream module to rebuild an upstream path.
 6. Declare management, moat, and distribution artifacts in the manifest and pass their immutable files with repeated `--supplemental` arguments when applicable.
-7. Validate each artifact immediately, then validate the complete bundle, scenario manifest, target-summary hashes, and upstream hashes.
+7. Validate each artifact immediately, then validate the complete bundle, scenario manifest, target-summary hashes, growth-driver hashes, and upstream hashes. When the full forecast is frozen, require exact equality with the bundle's revenue reference.
 8. Publish the frozen manifest, frozen revenue result, all leaf artifacts, bundle, receipt, and read-only Markdown report atomically.
-9. Report conclusions by module, management-target coverage, evidence strength, sensitivities, contradictions, and missing modules. Do not collapse unlike dimensions into an arbitrary total score.
+9. Lead the report with the concise revenue-owned growth drivers, then report conclusions by module, management-target coverage, evidence strength, sensitivities, contradictions, and missing modules. Do not collapse unlike dimensions into an arbitrary total score.
 
 For a complete segment financials → valuation → SOTP → bundle run, use one strict manifest and a frozen validated revenue result:
 

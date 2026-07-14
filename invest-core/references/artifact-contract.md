@@ -19,7 +19,7 @@ Schema `1.0` / suite `4.0.0`-`4.2.0` artifacts remain structurally verifiable as
 
 ## Revenue reference
 
-The revenue reference records `schema_version`, `engine_version`, `input_sha256`, and `result_sha256`. Creating it first calls the full revenue output validator, which recomputes segment models, recognition, consolidation, CAGR, sensitivity, confidence, management-target coverage, and the result hash.
+Revenue reference schema `1.1` records `schema_version`, `engine_version`, `input_sha256`, and `result_sha256`. Creating it first calls the full revenue output validator, which recomputes segment models, recognition, consolidation, CAGR, sensitivity, confidence, management-target coverage, growth-driver analysis, and the result hash.
 
 For revenue schema 3.1 and later, the reference also carries:
 
@@ -31,6 +31,15 @@ For revenue schema 3.1 and later, the reference also carries:
 Schema 3.2 summaries additionally preserve annual/run-rate/cumulative/ambiguous measurement basis, explicit model periods, and the measurement rationale. Downstream modules copy this summary solely to make revenue assumptions visible beside profit, valuation, and SOTP results. They may not edit it or use it to create another revenue forecast.
 
 Revenue schema 3.0 references are labeled `legacy_not_available`; schema 3.1 references are labeled `legacy_measurement_semantics` because they included targets but did not distinguish cumulative from single-period measurement. Neither label means management had no targets.
+
+For revenue schema 3.3, the reference additionally carries:
+
+- `growth_driver_analysis_status`: `validated` or `data_gap`;
+- a hash of the complete revenue-owned `growth_driver_analysis` block;
+- a separately hashed compact summary containing every root driver, revenue-owned rank/direction, mapped parameters and segments, causal chain, horizon, persistence, terminal base-case revenue increment, contribution share, evidence status, leading indicators, falsifiers, counterevidence status, and reconciliation;
+- no evidence-node duplication; full source/claim detail remains only in the frozen revenue forecast.
+
+Revenue schema 3.0-3.2 references created by suite 5.1 use `growth_driver_analysis_status=legacy_not_available`, null analysis hash, and an empty explanatory summary. A schema 3.3 reference that omits driver metadata is rejected. If a framework bundle freezes the full forecast, its recomputed reference must equal the artifact reference exactly.
 
 ## Scope
 

@@ -316,9 +316,10 @@ class CompanyOrchestratorTests(unittest.TestCase):
             "module": "management", "identity": manifest["identity"],
             "scope": {"type": "company", "name": forecast["company_name"]},
             "data": {
-                "qualitative_schema_version": "2.0", "facts": [], "interpretations": [],
+                "qualitative_schema_version": "2.1", "facts": [], "interpretations": [],
                 "commitment_assessments": [], "red_flag_interpretation_ids": [],
-                "disconfirming_fact_ids": [], "data_gaps": ["Synthetic empty sidecar"],
+                "execution_driver_assessments": [], "disconfirming_fact_ids": [],
+                "data_gaps": ["Synthetic empty sidecar"],
             },
             "limitations": ["Synthetic"],
         })

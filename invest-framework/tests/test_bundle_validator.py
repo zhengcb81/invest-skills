@@ -8,9 +8,11 @@ from pathlib import Path
 SUITE = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SUITE / "invest-core" / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+sys.path.insert(0, str(SUITE / "tests_support"))
 
 from bundle_validator import render_bundle_markdown, run_bundle, validate_bundle_artifact  # noqa: E402
-from invest_contracts import InvestmentArtifactError, SCENARIOS, artifact_reference, canonical_sha256, create_artifact, validate_artifact  # noqa: E402
+from invest_contracts import InvestmentArtifactError, SCENARIOS, artifact_reference, canonical_sha256, create_artifact, revenue_reference, validate_artifact  # noqa: E402
+from revenue_fixtures import load_revenue_fixture  # noqa: E402
 
 
 def identity() -> dict:
@@ -48,6 +50,26 @@ def plan() -> dict:
     }
 
 
+def legacy_financial_with_ref(result: dict, ref: dict) -> dict:
+    result_identity = {
+        "company_name": result["company_name"], "as_of_date": result["as_of_date"],
+        "currency": result["currency"], "unit": result["unit"],
+        "fiscal_year_end": result["fiscal_year_end"], "base_year": result["base_year"],
+        "forecast_years": result["forecast_years"],
+    }
+    body = {
+        "artifact_schema_version": "1.0", "invest_suite_version": "4.2.0", "module": "financials",
+        "identity": result_identity, "scope": {"type": "company", "name": result["company_name"]},
+        "scenario_set": list(SCENARIOS), "revenue_forecast_ref": ref,
+        "upstream_artifacts": [], "sources": [], "parameters": [], "evidence_claims": [],
+        "data": {"annual_financials": {}}, "limitations": ["Synthetic legacy carrier"],
+    }
+    artifact = {**body, "artifact_id": canonical_sha256(body)}
+    artifact["artifact_sha256"] = canonical_sha256(artifact)
+    validate_artifact(artifact)
+    return artifact
+
+
 class BundleValidatorTests(unittest.TestCase):
     def test_valid_dependency_order(self) -> None:
         financial, valuation = chain()
@@ -57,6 +79,8 @@ class BundleValidatorTests(unittest.TestCase):
         order = [item["module"] for item in bundle["data"]["execution_order"]]
         self.assertLess(order.index("financials"), order.index("valuation"))
         self.assertEqual(bundle["data"]["missing_optional_modules"], ["moat"])
+        self.assertEqual(bundle["data"]["growth_driver_analysis_status"], "legacy_not_available")
+        self.assertEqual(len(bundle["data"]["growth_driver_summary_sha256"]), 64)
 
     def test_missing_upstream_is_rejected(self) -> None:
         _, valuation = chain()
@@ -89,6 +113,37 @@ class BundleValidatorTests(unittest.TestCase):
         self.assertEqual(len(bundle["data"]["artifact_snapshots"]), 2)
         markdown = render_bundle_markdown(bundle)
         self.assertIn("模块与数据血缘", markdown)
+
+
+    def test_bundle_freezes_and_renders_validated_growth_drivers(self) -> None:
+        result = load_revenue_fixture("growth")
+        financial = legacy_financial_with_ref(result, revenue_reference(result))
+        growth_plan = {
+            "bundle_plan_schema_version": "2.0", "required_modules": ["financials"],
+            "optional_modules": [], "required_scoped_artifacts": [],
+            "optional_scoped_artifacts": [], "limitations": [],
+        }
+        bundle = run_bundle([financial], growth_plan, frozen_revenue_forecast=result)
+        self.assertEqual(bundle["data"]["bundle_data_schema_version"], "2.1")
+        self.assertEqual(bundle["data"]["summary"]["growth_driver_analysis_status"], "validated")
+        self.assertEqual(len(bundle["data"]["summary"]["growth_driver_summary"]["drivers"]), 2)
+        markdown = render_bundle_markdown(bundle)
+        self.assertIn("未来收入主要驱动力", markdown)
+        self.assertIn("终年基准情景收入增量", markdown)
+
+    def test_frozen_forecast_requires_exact_growth_driver_reference(self) -> None:
+        result = load_revenue_fixture("growth")
+        ref = revenue_reference(result)
+        ref["growth_driver_summary"]["drivers"][0]["thesis"] = "A locally altered downstream thesis."
+        ref["growth_driver_summary_sha256"] = canonical_sha256(ref["growth_driver_summary"])
+        financial = legacy_financial_with_ref(result, ref)
+        growth_plan = {
+            "bundle_plan_schema_version": "2.0", "required_modules": ["financials"],
+            "optional_modules": [], "required_scoped_artifacts": [],
+            "optional_scoped_artifacts": [], "limitations": [],
+        }
+        with self.assertRaisesRegex(InvestmentArtifactError, "frozen forecast reference mismatch"):
+            run_bundle([financial], growth_plan, frozen_revenue_forecast=result)
 
 
 if __name__ == "__main__":

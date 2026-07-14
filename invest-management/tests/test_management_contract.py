@@ -7,8 +7,10 @@ from pathlib import Path
 
 SUITE = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SUITE / "invest-core" / "scripts"))
+sys.path.insert(0, str(SUITE / "tests_support"))
 
-from invest_contracts import InvestmentArtifactError, canonical_sha256, finalize_draft, text_sha256  # noqa: E402
+from invest_contracts import InvestmentArtifactError, canonical_sha256, finalize_draft, revenue_reference, text_sha256  # noqa: E402
+from revenue_fixtures import load_revenue_fixture  # noqa: E402
 
 
 def identity() -> dict:
@@ -40,7 +42,7 @@ def draft() -> dict:
             "verification_status": "opened_and_checked",
         }],
         "data": {
-            "qualitative_schema_version": "2.0",
+            "qualitative_schema_version": "2.1",
             "facts": [{
                 "fact_id": "event_1", "fact_type": "integrity_event",
                 "statement": "A regulator imposed a sanction after review.",
@@ -51,10 +53,25 @@ def draft() -> dict:
                 "fact_ids": ["event_1"], "contrary_fact_ids": [], "confidence": "medium",
             }],
             "commitment_assessments": [], "red_flag_interpretation_ids": ["integrity_risk"],
-            "disconfirming_fact_ids": [], "data_gaps": ["No independent remediation audit was located"],
+            "execution_driver_assessments": [], "disconfirming_fact_ids": [],
+            "data_gaps": ["No independent remediation audit was located"],
         },
         "limitations": ["Synthetic fixture"],
     }
+
+
+def growth_draft() -> dict:
+    result = load_revenue_fixture("growth")
+    value = draft()
+    value["identity"] = {
+        "company_name": result["company_name"], "as_of_date": result["as_of_date"],
+        "currency": result["currency"], "unit": result["unit"],
+        "fiscal_year_end": result["fiscal_year_end"], "base_year": result["base_year"],
+        "forecast_years": result["forecast_years"],
+    }
+    value["scope"] = {"type": "company", "name": result["company_name"]}
+    value["revenue_forecast_ref"] = revenue_reference(result)
+    return value
 
 
 class ManagementContractTests(unittest.TestCase):
@@ -72,6 +89,27 @@ class ManagementContractTests(unittest.TestCase):
         value = draft()
         value["data"]["interpretations"][0]["fact_ids"] = ["invented_fact"]
         with self.assertRaisesRegex(InvestmentArtifactError, "unknown interpretation fact"):
+            finalize_draft(value)
+
+    def test_execution_assessment_reuses_revenue_driver_and_checked_fact(self) -> None:
+        value = growth_draft()
+        value["data"]["execution_driver_assessments"] = [{
+            "assessment_id": "execution_1", "growth_driver_ids": ["fixture_driver_Segment_A"],
+            "management_target_ids": [], "input_fact_ids": ["event_1"],
+            "contrary_fact_ids": [], "status": "on_track",
+            "conclusion": "The checked execution fact supports the registered revenue driver.",
+        }]
+        artifact = finalize_draft(value)
+        self.assertEqual(artifact["data"]["execution_driver_assessments"][0]["status"], "on_track")
+
+    def test_execution_assessment_cannot_invent_growth_driver(self) -> None:
+        value = growth_draft()
+        value["data"]["execution_driver_assessments"] = [{
+            "assessment_id": "execution_1", "growth_driver_ids": ["invented_driver"],
+            "management_target_ids": [], "input_fact_ids": ["event_1"],
+            "contrary_fact_ids": [], "status": "on_track", "conclusion": "Synthetic.",
+        }]
+        with self.assertRaisesRegex(InvestmentArtifactError, "unknown execution growth driver"):
             finalize_draft(value)
 
 

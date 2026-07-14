@@ -24,12 +24,15 @@ revenue-forecast segment B -> financials B -> valuation B --+-> SOTP
 
 Complete and validate the same owning module for every company, then pass those artifacts to `invest-compare`. Do not place the multi-company comparison artifact inside a single-company bundle.
 
+For a growth-driver comparison, first produce one validated framework bundle per company. `invest-compare` consumes each bundle's already hashed `growth_driver_summary`; it does not search, re-rank, translate, or reforecast the drivers.
+
 ## Execution policy
 
 - Reuse an artifact only when its hash validates and its information date is appropriate.
 - If an upstream artifact changes, every descendant is stale because its stored upstream hash no longer matches.
 - Scenario-bound descendants use the same hashed scenario manifest, not merely matching `low/base/high` labels.
 - Revenue schema 3.1+ descendants preserve one hashed management-target summary. Schema 3.2 additionally preserves annual/run-rate/cumulative measurement semantics. A mismatch blocks valuation aggregation or bundling; downstream modules never reconstruct the target test.
+- Revenue schema 3.3 descendants preserve one hashed growth-driver summary and the complete analysis hash. The framework report renders the revenue-owned rank, base-case terminal increment, evidence status, leading indicators, and falsifiers without recalculating them.
 - Optional qualitative modules can be omitted with an explicit limitation. Quantitative dependencies cannot be skipped.
 - The framework report preserves standalone method outputs and disagreements; it does not force a consensus score.
 - A manifest-driven execution freezes the complete manifest and revenue result, then binds their hashes, the scenario-manifest hash, every leaf artifact hash, the final bundle hash, and a machine-readable receipt.
