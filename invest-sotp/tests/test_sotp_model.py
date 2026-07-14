@@ -16,10 +16,11 @@ for path in (
 sys.path.insert(0, str(SUITE / "tests_support"))
 
 from financial_model import run_financial_model  # noqa: E402
-from invest_contracts import InvestmentArtifactError, canonical_sha256, validate_artifact  # noqa: E402
+from invest_contracts import InvestmentArtifactError, validate_artifact  # noqa: E402
 from revenue_fixtures import load_revenue_fixture  # noqa: E402
 from sotp_model import run_sotp, validate_sotp_artifact  # noqa: E402
 from valuation_model import run_valuation  # noqa: E402
+from artifact_test_utils import reseal_artifact  # noqa: E402
 
 
 def forecast_result() -> dict:
@@ -148,9 +149,7 @@ class SotpModelTests(unittest.TestCase):
         valuations = valuation_artifacts()
         artifact = run_sotp(valuations, sotp_input(valuations))
         artifact["data"]["scenario_sotp"]["base"]["sotp_equity_value_current"] += 1
-        body = {key: value for key, value in artifact.items() if key not in {"artifact_id", "artifact_sha256"}}
-        artifact["artifact_id"] = canonical_sha256(body)
-        artifact["artifact_sha256"] = canonical_sha256({key: value for key, value in artifact.items() if key != "artifact_sha256"})
+        reseal_artifact(artifact)
         with self.assertRaisesRegex(InvestmentArtifactError, "semantic recomputation"):
             validate_sotp_artifact(artifact)
 

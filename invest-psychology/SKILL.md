@@ -19,6 +19,10 @@ Ask the user for answers. Do not infer private motives from company data or conv
 python scripts/psychology_check.py psychology_input.json --output psychology.json
 ```
 
+## Formal output gate
+
+Accept a formal checklist result only from `scripts/psychology_check.py` and its schema-2.1 compliance receipt. Preserve the user's explicit `yes/no/unknown` inputs exactly; do not infer answers, diagnose the user, or extend the script result in prose.
+
 ## Boundaries
 
 - No automated score, pass/fail verdict, expected return, price target, or maximum position.

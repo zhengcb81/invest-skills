@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.2.0 - 2026-07-14
+
+- Added artifact schema 2.1 with shared, machine-recomputed compliance receipts across every invest module.
+- Reused revenue-forecast's source-capture contract so current direct claims bind to one captured snapshot and retrieved content is always untrusted data.
+- Added revenue reference schema 1.2 with explicit `current_validated` versus `legacy_read_only_validated` status and workflow-receipt lineage.
+- Strengthened company orchestration with ordered state transitions, leaf compliance-receipt inventory, final renderer hash, independent `validate_execution`, and free-form report override rejection.
+- Added weak-model adversarial tests for missing/tampered captures, altered compliance receipts, skipped states, and model-written report overrides.
+- Preserved immutable suite 5.0-5.1 artifact schema 2.0 and suite 4.0-4.2 artifact schema 1.0 validation.
+
 ## 5.1.0 - 2026-07-14
 
 - Added revenue reference and adapter schema 1.1 with separate hashes for the complete revenue-owned growth-driver analysis and its compact downstream summary.

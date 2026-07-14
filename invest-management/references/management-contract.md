@@ -1,6 +1,6 @@
 # Management artifact contract
 
-Use `module="management"`, company scope, and a non-scenario artifact unless a finding explicitly differs by forecast scenario. Current suite 5.1 data contains:
+Use `module="management"`, company scope, and a non-scenario artifact unless a finding explicitly differs by forecast scenario. Current suite 5.2 data contains:
 
 - `qualitative_schema_version="2.1"`;
 - `facts`: each has a unique fact ID, fact type, dated statement, and one or more checked claim IDs;

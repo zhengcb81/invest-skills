@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest Framework"
   short_description: "Orchestrate frozen modules and revenue driver reports"
-  default_prompt: "Use $invest-framework to orchestrate validated modules and report frozen revenue growth drivers without duplicating leaf calculations."
+  default_prompt: "Use $invest-framework to run the forced dependency graph and publish only its receipt-bound, bundle-rendered formal company report."

@@ -45,3 +45,5 @@ Any new feature must answer:
 7. Does a semantic validator independently recompute quantitative output from frozen inputs?
 8. Does every scenario-bound artifact carry the same scenario-manifest hash?
 9. If the conclusion concerns revenue growth, does it reference a revenue-owned `growth_driver_id` instead of reconstructing the causal tree downstream?
+10. Does every current source/claim bind to a captured snapshot, and does every current artifact carry a reproducible compliance receipt?
+11. If this is presented as a formal company report, did `invest-framework.validate_execution` prove the complete state sequence and renderer hash?

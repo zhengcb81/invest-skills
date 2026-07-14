@@ -25,6 +25,10 @@ Measure where capital went and what happened afterward. Do not infer management 
 python scripts/capital_allocation.py financials.json allocation_input.json --output distribution.json
 ```
 
+## Formal output gate
+
+Accept a formal distribution artifact only from `scripts/capital_allocation.py` after source-capture binding, semantic recomputation, and the shared schema-2.1 compliance receipt pass. Free text may explain frozen results but cannot add an unregistered historical flow, ratio, or judgment.
+
 ## Hard rules
 
 - Do not use market-cap change divided by retained earnings as a standalone verdict.

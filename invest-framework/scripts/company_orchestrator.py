@@ -20,15 +20,20 @@ for path in (
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from bundle_validator import render_bundle_markdown, run_bundle, validate_module_semantics  # noqa: E402
+from bundle_validator import (  # noqa: E402
+    render_bundle_markdown, run_bundle, validate_bundle_artifact, validate_module_semantics,
+)
 from financial_model import run_financial_model, validate_financial_artifact  # noqa: E402
 from invest_contracts import (  # noqa: E402
     InvestmentArtifactError, build_scenario_manifest, canonical_sha256,
-    read_json, revenue_reference, validate_revenue_forecast, write_new_json,
+    read_json, revenue_reference, text_sha256, validate_revenue_forecast, write_new_json,
 )
 from manifest_contract import ManifestContractError, scenario_manifest_from_policy, validate_manifest  # noqa: E402
 from sotp_model import run_sotp, validate_sotp_artifact  # noqa: E402
 from valuation_model import run_valuation, validate_valuation_artifact  # noqa: E402
+
+
+EXECUTION_RECEIPT_SCHEMA_VERSION = "2.1"
 
 
 def _require(condition: object, message: str) -> None:
@@ -41,6 +46,7 @@ def _inventory(artifacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
         {
             "module": artifact["module"], "scope": artifact["scope"],
             "artifact_id": artifact["artifact_id"], "artifact_sha256": artifact["artifact_sha256"],
+            "compliance_receipt_sha256": artifact["compliance_receipt"]["receipt_sha256"],
         }
         for artifact in artifacts
     ]
@@ -48,6 +54,77 @@ def _inventory(artifacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _scope_key(module: str, scope: dict[str, Any]) -> tuple[str, str, str]:
     return module, scope["type"], scope.get("name", "")
+
+
+def _build_success_receipt(execution: dict[str, Any]) -> dict[str, Any]:
+    forecast = execution["frozen_revenue_forecast"]
+    revenue_ref = revenue_reference(forecast)
+    revenue_compliance_status = revenue_ref["revenue_compliance_status"]
+    artifacts = [
+        *execution["financials"], *execution["valuations"], execution["sotp"],
+        *execution["supplementals"], execution["bundle"],
+    ]
+    receipt = {
+        "receipt_schema_version": EXECUTION_RECEIPT_SCHEMA_VERSION,
+        "status": "pass",
+        "execution_mode": "forced_dependency_graph",
+        "state_transitions": [
+            {"stage": "revenue_validated", "status": "pass", "compliance_status": revenue_compliance_status, "output_sha256": forecast["result_sha256"]},
+            {"stage": "manifest_validated", "status": "pass", "output_sha256": canonical_sha256(execution["normalized_manifest"])},
+            {"stage": "financials_validated", "status": "pass", "output_sha256s": [item["artifact_sha256"] for item in execution["financials"]]},
+            {"stage": "valuations_validated", "status": "pass", "output_sha256s": [item["artifact_sha256"] for item in execution["valuations"]]},
+            {"stage": "sotp_validated", "status": "pass", "output_sha256": execution["sotp"]["artifact_sha256"]},
+            {"stage": "supplementals_validated", "status": "pass", "output_sha256s": [item["artifact_sha256"] for item in execution["supplementals"]]},
+            {"stage": "bundle_validated", "status": "pass", "output_sha256": execution["bundle"]["artifact_sha256"]},
+            {"stage": "report_rendered", "status": "pass", "output_sha256": text_sha256(execution["report_markdown"])},
+        ],
+        "manifest_sha256": canonical_sha256(execution["normalized_manifest"]),
+        "revenue_input_sha256": forecast["input_sha256"],
+        "revenue_result_sha256": forecast["result_sha256"],
+        "revenue_compliance_status": revenue_compliance_status,
+        "revenue_workflow_receipt_sha256": revenue_ref["workflow_compliance_receipt_sha256"],
+        "revenue_forecast_ref": revenue_ref,
+        "scenario_manifest_sha256": execution["financials"][0]["scenario_manifest"]["scenario_manifest_sha256"],
+        "scenario_set": ["low", "base", "high"],
+        "segment_count": len(execution["financials"]),
+        "supplemental_count": len(execution["supplementals"]),
+        "artifact_inventory": _inventory(artifacts),
+        "formal_report_sha256": text_sha256(execution["report_markdown"]),
+        "formal_output_authority": "company_orchestrator_validated_bundle_renderer_only",
+        "freeform_formal_output_allowed": False,
+        "output_files": execution["output_files"],
+    }
+    receipt["receipt_sha256"] = canonical_sha256(receipt)
+    return receipt
+
+
+def validate_execution(execution: dict[str, Any]) -> None:
+    """Recompute every state transition before a formal company analysis is published."""
+    required = {
+        "normalized_manifest", "frozen_revenue_forecast", "financials", "valuations",
+        "sotp", "supplementals", "bundle", "report_markdown", "output_files", "receipt",
+    }
+    _require(isinstance(execution, dict) and required <= set(execution), "execution is incomplete")
+    forecast = execution["frozen_revenue_forecast"]
+    validate_revenue_forecast(forecast)
+    try:
+        normalized = validate_manifest(execution["normalized_manifest"], forecast)
+    except ManifestContractError as exc:
+        raise InvestmentArtifactError(str(exc)) from exc
+    _require(normalized == execution["normalized_manifest"], "normalized manifest drift")
+    _require(len(execution["financials"]) == len(execution["valuations"]) > 0, "execution segment outputs are incomplete")
+    for artifact in execution["financials"]:
+        validate_financial_artifact(artifact)
+    for artifact in execution["valuations"]:
+        validate_valuation_artifact(artifact)
+    validate_sotp_artifact(execution["sotp"])
+    for artifact in execution["supplementals"]:
+        validate_module_semantics(artifact)
+    validate_bundle_artifact(execution["bundle"])
+    expected_report = render_bundle_markdown(execution["bundle"])
+    _require(execution["report_markdown"] == expected_report, "formal report must come from the validated bundle renderer")
+    expected_receipt = _build_success_receipt(execution)
+    _require(execution["receipt"] == expected_receipt, "execution receipt mismatch")
 
 
 def _validate_supplementals(
@@ -127,7 +204,6 @@ def run_company(
     )
     _require(bundle["revenue_forecast_ref"] == revenue_ref, "bundle revenue lineage drift")
 
-    all_artifacts = [*bundle_inputs, bundle]
     supplemental_files = [f"supplemental_{index:03d}_{artifact['module']}.json" for index, artifact in enumerate(supplementals, start=1)]
     output_files = [
         "manifest.snapshot.json", "revenue_forecast.snapshot.json",
@@ -135,28 +211,20 @@ def run_company(
         *[f"segment_{index:03d}_valuation.json" for index in range(1, len(valuations) + 1)],
         "sotp.json", *supplemental_files, "bundle.json", "report.md", "receipt.json",
     ]
-    receipt = {
-        "receipt_schema_version": "2.0", "status": "pass",
-        "manifest_sha256": manifest_sha256,
-        "revenue_input_sha256": frozen_forecast["input_sha256"],
-        "revenue_result_sha256": frozen_forecast["result_sha256"],
-        "revenue_forecast_ref": revenue_ref,
-        "scenario_manifest_sha256": scenario_manifest["scenario_manifest_sha256"],
-        "scenario_set": ["low", "base", "high"],
-        "segment_count": len(financials), "supplemental_count": len(supplementals),
-        "artifact_inventory": _inventory(all_artifacts), "output_files": output_files,
-    }
-    receipt["receipt_sha256"] = canonical_sha256(receipt)
-    return {
+    execution = {
         "normalized_manifest": normalized, "frozen_revenue_forecast": frozen_forecast,
         "financials": financials, "valuations": valuations, "sotp": sotp,
         "supplementals": supplementals, "bundle": bundle,
-        "report_markdown": render_bundle_markdown(bundle), "receipt": receipt,
+        "report_markdown": render_bundle_markdown(bundle), "output_files": output_files,
     }
+    execution["receipt"] = _build_success_receipt(execution)
+    validate_execution(execution)
+    return execution
 
 
 def write_execution(output_directory: str | Path, execution: dict[str, Any]) -> None:
     """Publish a validated execution atomically without overwriting any path."""
+    validate_execution(execution)
     output = Path(output_directory).expanduser().resolve()
     _require(not output.exists(), f"output directory already exists: {output}")
     parent = output.parent
@@ -197,7 +265,7 @@ def write_failure_receipt(
     output = Path(output_directory).expanduser().resolve()
     failure_path = output.parent / f"{output.name}.failure.json"
     receipt = {
-        "receipt_schema_version": "2.0", "status": "fail", "stage": stage,
+        "receipt_schema_version": EXECUTION_RECEIPT_SCHEMA_VERSION, "status": "fail", "stage": stage,
         "error_type": type(error).__name__, "error_message": str(error),
         "manifest_sha256": canonical_sha256(manifest) if isinstance(manifest, dict) else None,
         "revenue_result_sha256": forecast.get("result_sha256") if isinstance(forecast, dict) else None,

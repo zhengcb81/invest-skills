@@ -15,6 +15,7 @@ from compare_artifacts import run_comparison, validate_comparison_artifact  # no
 from bundle_validator import run_bundle  # noqa: E402
 from invest_contracts import InvestmentArtifactError, SCENARIOS, canonical_sha256, create_artifact, revenue_reference, validate_artifact  # noqa: E402
 from revenue_fixtures import load_revenue_fixture  # noqa: E402
+from artifact_test_utils import reseal_artifact  # noqa: E402
 
 
 def artifact(company: str, metric: float, currency: str = "USD", unit: str = "million") -> dict:
@@ -119,9 +120,7 @@ class CompareArtifactsTests(unittest.TestCase):
     def test_semantic_validator_recomputes_rows(self) -> None:
         result = run_comparison([artifact("A", 2), artifact("B", 3)], model())
         result["data"]["rows"][0]["values"]["execution"]["normalized_value"] = 99
-        body = {key: value for key, value in result.items() if key not in {"artifact_id", "artifact_sha256"}}
-        result["artifact_id"] = canonical_sha256(body)
-        result["artifact_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "artifact_sha256"})
+        reseal_artifact(result)
         with self.assertRaisesRegex(InvestmentArtifactError, "semantic recomputation"):
             validate_comparison_artifact(result)
 
@@ -139,9 +138,7 @@ class CompareArtifactsTests(unittest.TestCase):
     def test_growth_driver_comparison_semantically_recomputes_rows(self) -> None:
         result = run_comparison([growth_bundle("A"), growth_bundle("B")], growth_model())
         result["data"]["rows"][0]["growth_driver_summary"]["drivers"][0]["thesis"] = "Altered"
-        body = {key: value for key, value in result.items() if key not in {"artifact_id", "artifact_sha256"}}
-        result["artifact_id"] = canonical_sha256(body)
-        result["artifact_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "artifact_sha256"})
+        reseal_artifact(result)
         with self.assertRaisesRegex(InvestmentArtifactError, "semantic recomputation"):
             validate_comparison_artifact(result)
 

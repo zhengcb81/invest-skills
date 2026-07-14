@@ -23,6 +23,20 @@ def forecast() -> dict:
 def draft() -> dict:
     result = forecast()
     excerpt = "Retention remained high because customers integrated the workflow deeply."
+    source = {
+        "source_id": "filing", "source_type": "exchange_filing", "title": "Annual filing",
+        "publisher": "Exchange", "url": "https://www.sec.gov/Archives/moat.htm",
+        "published_date": "2026-03-01", "accessed_date": "2026-07-01", "page_or_section": "Customers",
+    }
+    capture = {
+        "capture_schema_version": "1.0", "capture_method": "browser_open",
+        "tool_name": "test-browser", "tool_call_id": "fixture-moat-filing",
+        "captured_date": source["accessed_date"],
+        "snapshot_sha256": canonical_sha256({"source": "filing"}),
+        "content_treatment": "untrusted_data_only", "prompt_injection_status": "not_detected",
+    }
+    capture["receipt_sha256"] = canonical_sha256(capture)
+    source["capture"] = capture
     return {
         "module": "moat",
         "identity": {
@@ -33,11 +47,7 @@ def draft() -> dict:
         },
         "scope": {"type": "company", "name": result["company_name"]},
         "scenario_set": [], "revenue_forecast_ref": revenue_reference(result),
-        "sources": [{
-            "source_id": "filing", "source_type": "exchange_filing", "title": "Annual filing",
-            "publisher": "Exchange", "url": "https://www.sec.gov/Archives/moat.htm",
-            "published_date": "2026-03-01", "accessed_date": "2026-07-01", "page_or_section": "Customers",
-        }],
+        "sources": [source],
         "evidence_claims": [{
             "claim_id": "claim_retention", "source_id": "filing",
             "target_type": "qualitative_assertion", "target_id": "retention_fact",
@@ -46,6 +56,7 @@ def draft() -> dict:
             "content_sha256": canonical_sha256({"source": "filing"}),
             "verified_by": "unit-test", "verified_date": "2026-07-01",
             "verification_status": "opened_and_checked",
+            "capture_receipt_sha256": capture["receipt_sha256"],
         }],
         "data": {
             "qualitative_schema_version": "2.1",

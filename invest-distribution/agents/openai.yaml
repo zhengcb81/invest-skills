@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest Distribution"
   short_description: "Audit capital allocation, dilution, and per-share history"
-  default_prompt: "Use $invest-distribution to audit source-linked capital allocation and per-share outcomes."
+  default_prompt: "Use $invest-distribution to audit captured-source capital allocation and return only a semantically validated, receipt-bound artifact."

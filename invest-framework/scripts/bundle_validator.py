@@ -23,7 +23,7 @@ from capital_allocation import validate_distribution_artifact  # noqa: E402
 from financial_model import validate_financial_artifact  # noqa: E402
 from invest_contracts import (  # noqa: E402
     ARTIFACT_SCHEMA_VERSION,
-    INVEST_SUITE_VERSION,
+    CURRENT_SEMANTIC_SUITE_VERSIONS,
     InvestmentArtifactError,
     SCENARIOS,
     artifact_reference,
@@ -243,7 +243,7 @@ def validate_bundle_artifact(artifact: dict[str, Any]) -> None:
     if artifact["artifact_schema_version"] != ARTIFACT_SCHEMA_VERSION:
         return
     data = artifact["data"]
-    expected_data_schema = BUNDLE_DATA_SCHEMA_VERSION if artifact["invest_suite_version"] == INVEST_SUITE_VERSION else LEGACY_BUNDLE_DATA_SCHEMA_VERSION
+    expected_data_schema = BUNDLE_DATA_SCHEMA_VERSION if artifact["invest_suite_version"] in CURRENT_SEMANTIC_SUITE_VERSIONS else LEGACY_BUNDLE_DATA_SCHEMA_VERSION
     _require(data.get("bundle_data_schema_version") == expected_data_schema, "invalid bundle data schema")
     snapshots = data.get("artifact_snapshots")
     _require(isinstance(snapshots, list) and snapshots, "bundle must freeze artifact snapshots")
@@ -326,15 +326,19 @@ def render_bundle_markdown(bundle: dict[str, Any]) -> str:
         f"- Invest suite：{bundle['invest_suite_version']} / artifact {bundle['artifact_schema_version']}",
         f"- Bundle ID：`{bundle['artifact_id']}`",
         f"- 营收目标覆盖：{summary['management_target_coverage_status']}",
+        f"- 营收合规状态：{(bundle.get('revenue_forecast_ref') or {}).get('revenue_compliance_status', 'legacy_read_only_validated')}",
         "",
         "## 模块与数据血缘",
         "",
-        "| 顺序 | 模块 | 范围 | Artifact ID |",
-        "|---:|---|---|---|",
+        "| 顺序 | 模块 | 范围 | Artifact ID | Compliance receipt |",
+        "|---:|---|---|---|---|",
     ]
+    snapshot_by_id = {item["artifact_id"]: item for item in data["artifact_snapshots"]}
     for item in summary["execution_order"]:
         scope = item["scope"].get("name", item["scope"]["type"])
-        lines.append(f"| {item['execution_index']} | {item['module']} | {scope} | `{item['artifact_id'][:12]}` |")
+        snapshot = snapshot_by_id[item["artifact_id"]]
+        receipt = snapshot.get("compliance_receipt", {}).get("receipt_sha256", "legacy")
+        lines.append(f"| {item['execution_index']} | {item['module']} | {scope} | `{item['artifact_id'][:12]}` | `{receipt[:12]}` |")
     sotps = [item for item in data["artifact_snapshots"] if item["module"] == "sotp"]
     valuations = [
         item for item in data["artifact_snapshots"]

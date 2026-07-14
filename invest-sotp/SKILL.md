@@ -28,6 +28,10 @@ Treat SOTP as a pure composition step.
 python scripts/sotp_model.py sotp_input.json valuation_a.json valuation_b.json --output sotp.json
 ```
 
+## Formal output gate
+
+Accept a formal SOTP only from `scripts/sotp_model.py` after every valuation input, ownership bridge, semantic recomputation, and shared schema-2.1 compliance receipt pass. Never hand-sum or patch a failed SOTP in prose.
+
 ## Hard rules
 
 - Reject duplicate or company-scoped parts; every part must be a unique segment.

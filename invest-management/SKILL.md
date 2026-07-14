@@ -27,6 +27,10 @@ Evaluate people and decision processes from dated evidence. Keep measured capita
 python ../invest-core/scripts/invest_contracts.py finalize-draft management_draft.json --output management.json
 ```
 
+## Formal output gate
+
+Accept a formal management artifact only after `invest_contracts.py finalize-draft` validates every factual claim, source capture, interpretation mapping, and schema-2.1 compliance receipt. Model-written prose cannot introduce an allegation, execution status, or red flag absent from the validated artifact.
+
 ## Boundaries
 
 - Do not equate founder ownership with alignment without control, compensation, dilution, and transaction evidence.

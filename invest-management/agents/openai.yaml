@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest Management"
   short_description: "Assess management execution from checked evidence"
-  default_prompt: "Use $invest-management to assess management, governance, and execution against existing revenue drivers using checked facts."
+  default_prompt: "Use $invest-management to finalize captured-source management evidence into a validated artifact without adding free-form allegations."

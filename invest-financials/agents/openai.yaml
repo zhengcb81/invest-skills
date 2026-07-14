@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest Financials"
   short_description: "Model typed profit and cash flow from frozen revenue"
-  default_prompt: "Use $invest-financials to build an auditable profit and cash-flow forecast from a validated revenue forecast."
+  default_prompt: "Use $invest-financials to build a semantically recomputed profit and cash-flow artifact with a validated compliance receipt."

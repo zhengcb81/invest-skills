@@ -23,6 +23,10 @@ Treat a moat as a causal mechanism that changes the durability or range of an al
 6. Define at least one explicit falsifier and observable leading indicator per mechanism.
 7. Produce a `moat` artifact with the validated revenue reference; do not alter the frozen forecast artifact.
 
+## Formal output gate
+
+Accept a formal moat artifact only after `invest_contracts.py finalize-draft` validates every fact, upstream driver mapping, falsifier, source capture, and schema-2.1 compliance receipt. Prose cannot invent a mechanism, durability claim, driver, or valuation premium.
+
 ## Boundaries
 
 - Market share, retention, price, or win rate belongs to revenue modeling; reference the revenue-owned growth driver rather than reforecasting or re-ranking it.

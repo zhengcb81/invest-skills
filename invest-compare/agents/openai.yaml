@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest Compare"
   short_description: "Compare aligned metrics or validated revenue drivers"
-  default_prompt: "Use $invest-compare to compare validated company artifacts on aligned metrics or frozen revenue growth-driver summaries."
+  default_prompt: "Use $invest-compare to compare only validated aligned artifacts and return a semantically validated, receipt-bound comparison."

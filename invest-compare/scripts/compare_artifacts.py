@@ -19,7 +19,7 @@ for scripts in (SUITE / "invest-core" / "scripts", SUITE / "invest-framework" / 
 
 from invest_contracts import (  # noqa: E402
     ARTIFACT_SCHEMA_VERSION,
-    INVEST_SUITE_VERSION,
+    CURRENT_SEMANTIC_SUITE_VERSIONS,
     MONETARY_DIMENSIONS,
     PARAMETER_DIMENSIONS,
     InvestmentArtifactError,
@@ -249,7 +249,7 @@ def validate_comparison_artifact(artifact: dict[str, Any]) -> None:
     if artifact["artifact_schema_version"] != ARTIFACT_SCHEMA_VERSION:
         return
     data = artifact["data"]
-    expected_version = COMPARISON_MODEL_SCHEMA_VERSION if artifact["invest_suite_version"] == INVEST_SUITE_VERSION else LEGACY_COMPARISON_MODEL_SCHEMA_VERSION
+    expected_version = COMPARISON_MODEL_SCHEMA_VERSION if artifact["invest_suite_version"] in CURRENT_SEMANTIC_SUITE_VERSIONS else LEGACY_COMPARISON_MODEL_SCHEMA_VERSION
     _require(data.get("comparison_model_schema_version") == expected_version, "invalid comparison model schema")
     comparison_kind = data.get("comparison_kind", "metrics" if expected_version == LEGACY_COMPARISON_MODEL_SCHEMA_VERSION else None)
     _require(comparison_kind in {"metrics", "growth_drivers"}, "invalid comparison kind")

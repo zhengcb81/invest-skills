@@ -11,6 +11,7 @@ Run a dependency graph, not a monolithic scorecard.
 
 - Read `invest-core/SKILL.md` and [references/pipeline.md](references/pipeline.md).
 - Read [references/company-manifest.md](references/company-manifest.md) before running automatic heterogeneous-segment orchestration.
+- Read `invest-core/references/compliance-contract.md` before publishing a formal company result.
 - Load only the leaf skills needed for the user's question.
 - Use `scripts/bundle_validator.py` to validate the final single-company bundle.
 
@@ -30,7 +31,7 @@ Run a dependency graph, not a monolithic scorecard.
 5. Never ask a downstream module to rebuild an upstream path.
 6. Declare management, moat, and distribution artifacts in the manifest and pass their immutable files with repeated `--supplemental` arguments when applicable.
 7. Validate each artifact immediately, then validate the complete bundle, scenario manifest, target-summary hashes, growth-driver hashes, and upstream hashes. When the full forecast is frozen, require exact equality with the bundle's revenue reference.
-8. Publish the frozen manifest, frozen revenue result, all leaf artifacts, bundle, receipt, and read-only Markdown report atomically.
+8. Run `validate_execution`, then publish the frozen manifest, frozen revenue result, all leaf artifacts, bundle, receipt, and read-only Markdown report atomically.
 9. Lead the report with the concise revenue-owned growth drivers, then report conclusions by module, management-target coverage, evidence strength, sensitivities, contradictions, and missing modules. Do not collapse unlike dimensions into an arbitrary total score.
 
 For a complete segment financials → valuation → SOTP → bundle run, use one strict manifest and a frozen validated revenue result:
@@ -40,6 +41,8 @@ python scripts/company_orchestrator.py company_manifest.json forecast.json --sup
 ```
 
 The orchestrator is sequential, runs every quantitative leaf in memory, validates declared qualitative sidecars, binds the manifest and scenario hashes into the final bundle, and publishes through a temporary directory only after the full graph passes. An existing output directory is never overwritten.
+
+Its schema-2.1 receipt records every required state transition, the revenue compliance status, every module compliance-receipt hash, the final report hash, and `freeform_formal_output_allowed=false`. A complete company conclusion is formal only when this receipt recomputes and `report.md` exactly equals the bundle renderer. Never patch or supplement the formal report in prose.
 
 ```powershell
 python scripts/bundle_validator.py bundle_input.json artifact_a.json artifact_b.json --output bundle.json
@@ -52,3 +55,4 @@ python scripts/bundle_validator.py bundle_input.json artifact_a.json artifact_b.
 - Do not put API keys, tokens, passwords, network actions, formula overrides, or an incomplete segment list in a company manifest.
 - A missing required module blocks the bundle. An optional missing module is reported as a limitation, not imputed.
 - Do not produce buy/sell ratings merely by averaging module judgments.
+- Never label legacy revenue or artifact contracts as current-compliant; preserve the explicit `legacy_read_only_validated` status.

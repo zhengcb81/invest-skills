@@ -41,6 +41,15 @@ def evidence() -> tuple[list[dict], list[dict], list[dict]]:
         "accessed_date": "2026-07-01",
         "page_or_section": "Income statement",
     }
+    capture = {
+        "capture_schema_version": "1.0", "capture_method": "browser_open",
+        "tool_name": "test-browser", "tool_call_id": "fixture-filing",
+        "captured_date": source["accessed_date"],
+        "snapshot_sha256": canonical_sha256({"page": "income statement"}),
+        "content_treatment": "untrusted_data_only", "prompt_injection_status": "not_detected",
+    }
+    capture["receipt_sha256"] = canonical_sha256(capture)
+    source["capture"] = capture
     parameter = {
         "parameter_id": "net_income_2025",
         "kind": "reported_fact",
@@ -70,6 +79,7 @@ def evidence() -> tuple[list[dict], list[dict], list[dict]]:
         "verified_by": "unit-test",
         "verified_date": "2026-07-01",
         "verification_status": "opened_and_checked",
+        "capture_receipt_sha256": capture["receipt_sha256"],
         "extracted_value": 20,
         "unit": "USD million",
         "period": "FY2025",
@@ -95,6 +105,40 @@ class ContractTests(unittest.TestCase):
         )
         validate_artifact(artifact)
 
+    def test_current_artifact_requires_captured_sources(self) -> None:
+        sources, parameters, claims = evidence()
+        del sources[0]["capture"]
+        with self.assertRaisesRegex(InvestmentArtifactError, "source capture is required"):
+            create_artifact(
+                "management", identity(), {"type": "company", "name": "Test Co"},
+                management_data(), sources=sources, parameters=parameters, evidence_claims=claims,
+            )
+
+    def test_claim_must_bind_to_source_capture(self) -> None:
+        sources, parameters, claims = evidence()
+        claims[0]["capture_receipt_sha256"] = "b" * 64
+        with self.assertRaisesRegex(InvestmentArtifactError, "claim capture receipt mismatch"):
+            create_artifact(
+                "management", identity(), {"type": "company", "name": "Test Co"},
+                management_data(), sources=sources, parameters=parameters, evidence_claims=claims,
+            )
+
+    def test_rehashed_compliance_override_is_rejected(self) -> None:
+        artifact = create_artifact(
+            "psychology", identity(), {"type": "company", "name": "Test Co"},
+            {"user_answers": {}}, limitations=["Synthetic"],
+        )
+        artifact["compliance_receipt"]["freeform_formal_output_allowed"] = True
+        artifact["compliance_receipt"]["receipt_sha256"] = canonical_sha256({
+            key: value for key, value in artifact["compliance_receipt"].items()
+            if key != "receipt_sha256"
+        })
+        body = {key: value for key, value in artifact.items() if key not in {"artifact_id", "artifact_sha256"}}
+        artifact["artifact_id"] = canonical_sha256(body)
+        artifact["artifact_sha256"] = canonical_sha256({key: value for key, value in artifact.items() if key != "artifact_sha256"})
+        with self.assertRaisesRegex(InvestmentArtifactError, "artifact compliance receipt mismatch"):
+            validate_artifact(artifact)
+
     def test_mutation_breaks_hash(self) -> None:
         artifact = create_artifact(
             "psychology", identity(), {"type": "company", "name": "Test Co"},
@@ -102,7 +146,7 @@ class ContractTests(unittest.TestCase):
         )
         tampered = copy.deepcopy(artifact)
         tampered["data"]["user_answers"]["fomo"] = True
-        with self.assertRaisesRegex(InvestmentArtifactError, "artifact_id mismatch"):
+        with self.assertRaisesRegex(InvestmentArtifactError, "artifact compliance receipt mismatch"):
             validate_artifact(tampered)
 
     def test_different_content_has_different_artifact_id(self) -> None:
@@ -201,6 +245,21 @@ class ContractTests(unittest.TestCase):
         )
         body = {key: value for key, value in current.items() if key not in {"artifact_id", "artifact_sha256"}}
         body["invest_suite_version"] = "5.0.0"
+        body["artifact_schema_version"] = "2.0"
+        body.pop("compliance_receipt")
+        artifact = {**body, "artifact_id": canonical_sha256(body)}
+        artifact["artifact_sha256"] = canonical_sha256(artifact)
+        validate_artifact(artifact)
+
+    def test_suite_5_1_artifact_schema_2_remains_valid(self) -> None:
+        current = create_artifact(
+            "psychology", identity(), {"type": "company", "name": "Test Co"},
+            {"legacy_fixture": True}, limitations=["Immutable suite-5.1 compatibility fixture"],
+        )
+        body = {key: value for key, value in current.items() if key not in {"artifact_id", "artifact_sha256"}}
+        body["invest_suite_version"] = "5.1.0"
+        body["artifact_schema_version"] = "2.0"
+        body.pop("compliance_receipt")
         artifact = {**body, "artifact_id": canonical_sha256(body)}
         artifact["artifact_sha256"] = canonical_sha256(artifact)
         validate_artifact(artifact)
@@ -212,6 +271,8 @@ class ContractTests(unittest.TestCase):
         )
         body = {key: value for key, value in current.items() if key not in {"artifact_id", "artifact_sha256"}}
         body["invest_suite_version"] = "5.0.0"
+        body["artifact_schema_version"] = "2.0"
+        body.pop("compliance_receipt")
         body["data"] = dict(body["data"])
         body["data"]["qualitative_schema_version"] = "2.0"
         body["data"].pop("execution_driver_assessments")

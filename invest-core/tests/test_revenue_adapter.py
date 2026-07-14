@@ -15,6 +15,7 @@ from invest_contracts import (  # noqa: E402
     adapt_revenue,
     canonical_sha256,
     create_artifact,
+    revenue_runtime,
 )
 from revenue_fixtures import load_revenue_fixture  # noqa: E402
 
@@ -37,12 +38,46 @@ class RevenueAdapterTests(unittest.TestCase):
         adapter = adapt_revenue(result)
         ref = adapter["revenue_forecast_ref"]
         summary = ref["growth_driver_summary"]
-        self.assertEqual(ref["revenue_reference_schema_version"], "1.1")
+        self.assertEqual(ref["revenue_reference_schema_version"], "1.2")
+        self.assertEqual(ref["revenue_compliance_status"], "legacy_read_only_validated")
+        self.assertIsNone(ref["workflow_compliance_receipt_sha256"])
         self.assertEqual(ref["growth_driver_analysis_status"], "validated")
         self.assertEqual(ref["growth_driver_analysis_sha256"], canonical_sha256(result["growth_driver_analysis"]))
         self.assertEqual(ref["growth_driver_summary_sha256"], canonical_sha256(summary))
         self.assertEqual([item["rank"] for item in summary["drivers"]], [1, 2])
         self.assertNotIn("evidence_nodes", summary["drivers"][0])
+
+    def test_current_revenue_workflow_receipt_is_transferred(self) -> None:
+        result = load_revenue_fixture("growth")
+        core, report, _ = revenue_runtime()
+        for source in result["sources"]:
+            content_hashes = {
+                claim["content_sha256"] for claim in result["evidence_claims"]
+                if claim["source_id"] == source["source_id"]
+            }
+            self.assertEqual(len(content_hashes), 1)
+            capture = {
+                "capture_schema_version": "1.0", "capture_method": "local_document",
+                "tool_name": "frozen-fixture-loader", "tool_call_id": f"fixture-{source['source_id']}",
+                "captured_date": source["accessed_date"], "snapshot_sha256": content_hashes.pop(),
+                "content_treatment": "untrusted_data_only", "prompt_injection_status": "not_detected",
+            }
+            capture["receipt_sha256"] = core.canonical_sha256(capture)
+            source["capture"] = capture
+            for claim in result["evidence_claims"]:
+                if claim["source_id"] == source["source_id"]:
+                    claim["capture_receipt_sha256"] = capture["receipt_sha256"]
+        result["schema_version"] = core.FORECAST_SCHEMA_VERSION
+        result["engine_version"] = core.ENGINE_VERSION
+        result["workflow_compliance_receipt"] = core.build_workflow_compliance_receipt(
+            result["input_sha256"], result["sources"], result["evidence_claims"],
+            result["parameter_trace"], result.get("data_gaps", []),
+        )
+        result["result_sha256"] = core.canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
+        report.validate_forecast_output(result)
+        ref = adapt_revenue(result)["revenue_forecast_ref"]
+        self.assertEqual(ref["revenue_compliance_status"], "current_validated")
+        self.assertEqual(ref["workflow_compliance_receipt_sha256"], result["workflow_compliance_receipt"]["receipt_sha256"])
 
     def test_growth_driver_summary_tampering_is_rejected(self) -> None:
         result = load_revenue_fixture("growth")

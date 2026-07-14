@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest Valuation"
   short_description: "Value validated financial paths with explicit timing"
-  default_prompt: "Use $invest-valuation to value a validated financial forecast without rebuilding its revenue or profit paths."
+  default_prompt: "Use $invest-valuation to value validated financial paths and return only a semantically validated, receipt-bound artifact."

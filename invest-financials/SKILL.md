@@ -28,6 +28,10 @@ Model profit and cash flow as deterministic lines downstream of a frozen `revenu
 python scripts/financial_model.py forecast.json financial_input.json --output financials.json
 ```
 
+## Formal output gate
+
+Accept a formal financials result only from `scripts/financial_model.py` after both independent semantic recomputation and the shared schema-2.1 compliance receipt pass. If either gate fails, stop; do not replace missing paths with prose. A narrative summary may only restate fields and limitations already frozen in the artifact.
+
 ## Boundaries
 
 - Copy revenue from the adapter exactly; never accept a revenue override.

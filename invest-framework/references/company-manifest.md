@@ -14,7 +14,8 @@ validated frozen revenue result
        validate valuation artifact
   -> run SOTP over every segment valuation
   -> validate bundle dependency graph and hashes
-  -> create pass receipt
+  -> render report from validated bundle
+  -> validate ordered pass-state receipt and report hash
   -> atomically publish a new output directory
 ```
 
@@ -123,7 +124,7 @@ report.md
 receipt.json
 ```
 
-`receipt.json` binds the manifest hash, revenue input/result hashes, scenario-manifest hash, frozen revenue reference, global scenario set, segment and supplemental counts, every artifact ID/hash, output filenames, and its own hash. Segment file order follows manifest order and is recorded through each artifact scope.
+`receipt.json` binds the manifest hash, revenue input/result and workflow-receipt hashes, current/legacy revenue status, scenario-manifest hash, frozen revenue reference, global scenario set, ordered state transitions, segment and supplemental counts, every artifact ID/hash and compliance-receipt hash, report hash, output filenames, formal-output authority, and its own hash. Segment file order follows manifest order and is recorded through each artifact scope.
 
 The output directory must not exist. The command calculates and validates all artifacts first, writes a unique sibling temporary directory, then renames it into place. Any exception removes the temporary directory and produces no success bundle.
 
@@ -144,7 +145,8 @@ Before running, verify every item literally; do not infer missing values:
 9. SOTP selections and ownership cover every segment exactly.
 10. No secret, network action, override, default multiple, default discount rate, default ownership, or output path reuse exists.
 11. Run the full test suites before accepting a framework change.
-12. Treat a pass receipt as `candidate` evidence; it is not an independent human review.
+12. Require the report to equal the bundle renderer and the execution receipt to recompute exactly.
+13. Treat a pass receipt as `candidate` evidence; it is not an independent human review or proof that external facts are true.
 
 ## Required regression command
 

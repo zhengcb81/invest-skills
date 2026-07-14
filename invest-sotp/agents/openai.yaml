@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest SOTP"
   short_description: "Aggregate EV or equity segment values into company SOTP"
-  default_prompt: "Use $invest-sotp to aggregate validated segment valuation artifacts without creating new forecasts."
+  default_prompt: "Use $invest-sotp to aggregate validated segment valuations and return only a semantically validated, receipt-bound SOTP artifact."

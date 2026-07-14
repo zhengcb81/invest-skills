@@ -28,6 +28,10 @@ Growth-driver mode accepts validated framework bundles only. It requires identic
 python scripts/compare_artifacts.py compare_input.json company_a.json company_b.json --output comparison.json
 ```
 
+## Formal output gate
+
+Accept a formal comparison only from `scripts/compare_artifacts.py` after every input artifact and the output's semantic and schema-2.1 compliance gates pass. Never fill a missing peer value, normalize an undeclared difference, or add a rank in prose.
+
 ## Boundaries
 
 - Do not search for new facts inside this skill; return to the owning module if data are missing.

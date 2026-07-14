@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest Core"
   short_description: "Validate shared contracts, driver refs, and lineage"
-  default_prompt: "Use $invest-core to validate immutable investment artifacts and revenue-owned growth-driver references."
+  default_prompt: "Use $invest-core to validate immutable investment artifacts, source captures, revenue references, lineage, and machine-recomputed compliance receipts."

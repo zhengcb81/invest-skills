@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zhengcb81.github.io/invest-skills/schemas/invest-artifact-2.1.schema.json",
+  "title": "Invest artifact envelope 2.1",
+  "type": "object",
+  "required": ["artifact_schema_version", "invest_suite_version", "module", "artifact_id", "artifact_sha256", "identity", "scope", "scenario_set", "scenario_manifest", "revenue_forecast_ref", "upstream_artifacts", "sources", "parameters", "evidence_claims", "data", "limitations", "compliance_receipt"],
+  "properties": {
+    "artifact_schema_version": {"const": "2.1"},
+    "invest_suite_version": {"const": "5.2.0"},
+    "module": {"enum": ["financials", "valuation", "sotp", "management", "moat", "distribution", "compare", "psychology", "framework"]},
+    "artifact_id": {"$ref": "#/$defs/hash"},
+    "artifact_sha256": {"$ref": "#/$defs/hash"},
+    "identity": {"type": "object"},
+    "scope": {"type": "object"},
+    "scenario_set": {"oneOf": [{"maxItems": 0}, {"const": ["low", "base", "high"]}]},
+    "scenario_manifest": {"type": ["object", "null"]},
+    "revenue_forecast_ref": {"type": ["object", "null"]},
+    "upstream_artifacts": {"type": "array", "items": {"type": "object", "required": ["module", "artifact_id", "artifact_sha256"]}},
+    "sources": {"type": "array", "items": {"$ref": "#/$defs/source"}},
+    "parameters": {"type": "array", "items": {"type": "object"}},
+    "evidence_claims": {"type": "array", "items": {"type": "object"}},
+    "data": {"type": "object"},
+    "limitations": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "compliance_receipt": {"$ref": "#/$defs/compliance_receipt"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source": {
+      "type": "object",
+      "required": ["source_id", "url", "published_date", "accessed_date", "capture"],
+      "properties": {"capture": {"$ref": "#/$defs/capture"}}
+    },
+    "capture": {
+      "type": "object",
+      "required": ["capture_schema_version", "capture_method", "tool_name", "tool_call_id", "captured_date", "snapshot_sha256", "content_treatment", "prompt_injection_status", "receipt_sha256"],
+      "properties": {
+        "capture_schema_version": {"const": "1.0"},
+        "capture_method": {"enum": ["browser_open", "api_response", "local_document", "structured_connector", "manual_open"]},
+        "tool_name": {"type": "string", "minLength": 1},
+        "tool_call_id": {"type": "string", "minLength": 1},
+        "captured_date": {"type": "string", "format": "date"},
+        "snapshot_sha256": {"$ref": "#/$defs/hash"},
+        "content_treatment": {"const": "untrusted_data_only"},
+        "prompt_injection_status": {"enum": ["not_detected", "detected_and_ignored"]},
+        "receipt_sha256": {"$ref": "#/$defs/hash"}
+      },
+      "additionalProperties": false
+    },
+    "compliance_receipt": {
+      "type": "object",
+      "required": ["compliance_schema_version", "status", "execution_mode", "module", "contract_validator_ids", "source_capture_receipt_sha256s", "artifact_data_sha256", "formal_output_authority", "freeform_formal_output_allowed", "receipt_sha256"],
+      "properties": {
+        "compliance_schema_version": {"const": "1.0"},
+        "status": {"const": "pass"},
+        "execution_mode": {"const": "deterministic_runtime"},
+        "module": {"type": "string"},
+        "contract_validator_ids": {"type": "array", "minItems": 1, "uniqueItems": true},
+        "source_capture_receipt_sha256s": {"type": "array", "items": {"$ref": "#/$defs/hash"}},
+        "artifact_data_sha256": {"$ref": "#/$defs/hash"},
+        "formal_output_authority": {"const": "validated_artifact_or_bundle_renderer_only"},
+        "freeform_formal_output_allowed": {"const": false},
+        "receipt_sha256": {"$ref": "#/$defs/hash"}
+      }
+    }
+  }
+}

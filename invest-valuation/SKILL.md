@@ -30,6 +30,10 @@ Calculate value from immutable upstream artifacts. A valuation method may select
 python scripts/valuation_model.py financials.json valuation_input.json --output valuation.json
 ```
 
+## Formal output gate
+
+Accept a formal valuation result only from `scripts/valuation_model.py` after semantic recomputation and the shared schema-2.1 compliance receipt pass. Never repair, average, or extend a failed artifact in prose; a narrative may only summarize frozen method results, assumptions, sensitivities, and limitations.
+
 ## Hard rules
 
 - DCF discount rate must exceed terminal growth for every scenario.

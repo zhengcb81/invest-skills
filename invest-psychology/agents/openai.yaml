@@ -1,4 +1,4 @@
 interface:
   display_name: "Invest Psychology"
   short_description: "Run a user-answered investment decision-process checklist"
-  default_prompt: "Use $invest-psychology to run a user-answered pre-commitment and cognitive-bias checklist."
+  default_prompt: "Use $invest-psychology to run the explicit user-answer checklist and return only its script-validated, receipt-bound result."

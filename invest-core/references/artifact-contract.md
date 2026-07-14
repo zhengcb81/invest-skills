@@ -1,6 +1,6 @@
 # Investment artifact contract
 
-Every schema `2.0` module artifact contains:
+Every schema `2.1` module artifact contains:
 
 - `artifact_schema_version` and `invest_suite_version`;
 - `module`, `artifact_id`, and `artifact_sha256`;
@@ -12,14 +12,15 @@ Every schema `2.0` module artifact contains:
 - `upstream_artifacts`, each with module, artifact ID, and complete artifact hash;
 - direct `sources`, `parameters`, and `evidence_claims` owned by this module;
 - deterministic `data` plus explicit `limitations`.
+- a machine-recomputed compliance receipt binding upstream lineage, capture receipts, assumptions, module data, limitations, and formal-output authority.
 
 The content-derived artifact ID covers every body field before IDs are added. The artifact hash then covers every field except `artifact_sha256`. An upstream artifact is referenced by its immutable hash, never by a mutable filename alone.
 
-Schema `1.0` / suite `4.0.0`-`4.2.0` artifacts remain structurally verifiable as immutable legacy records. They do not gain schema `2.0` semantic guarantees, scenario manifests, complete snapshots, or module recalculation merely because a newer runtime opens them.
+Schema `2.0` / suite `5.0.0`-`5.1.0` and schema `1.0` / suite `4.0.0`-`4.2.0` artifacts remain structurally verifiable as immutable legacy records. They do not gain schema `2.1` capture or compliance-receipt guarantees merely because a newer runtime opens them.
 
 ## Revenue reference
 
-Revenue reference schema `1.1` records `schema_version`, `engine_version`, `input_sha256`, and `result_sha256`. Creating it first calls the full revenue output validator, which recomputes segment models, recognition, consolidation, CAGR, sensitivity, confidence, management-target coverage, growth-driver analysis, and the result hash.
+Revenue reference schema `1.2` records `schema_version`, `engine_version`, `input_sha256`, `result_sha256`, `revenue_compliance_status`, and the current workflow receipt hash when available. Creating it first calls the full revenue output validator, which recomputes segment models, recognition, consolidation, CAGR, sensitivity, confidence, management-target coverage, growth-driver analysis, capture binding, workflow receipt, and the result hash.
 
 For revenue schema 3.1 and later, the reference also carries:
 
@@ -39,7 +40,7 @@ For revenue schema 3.3, the reference additionally carries:
 - a separately hashed compact summary containing every root driver, revenue-owned rank/direction, mapped parameters and segments, causal chain, horizon, persistence, terminal base-case revenue increment, contribution share, evidence status, leading indicators, falsifiers, counterevidence status, and reconciliation;
 - no evidence-node duplication; full source/claim detail remains only in the frozen revenue forecast.
 
-Revenue schema 3.0-3.2 references created by suite 5.1 use `growth_driver_analysis_status=legacy_not_available`, null analysis hash, and an empty explanatory summary. A schema 3.3 reference that omits driver metadata is rejected. If a framework bundle freezes the full forecast, its recomputed reference must equal the artifact reference exactly.
+Revenue schema 3.0-3.2 references use `growth_driver_analysis_status=legacy_not_available`, null analysis hash, and an empty explanatory summary. Schema 3.0-3.3 records are labeled `legacy_read_only_validated`; only current schema 3.4 can be `current_validated` with a workflow-receipt hash. A schema 3.3+ reference that omits driver metadata is rejected. If a framework bundle freezes the full forecast, its recomputed reference must equal the artifact reference exactly.
 
 ## Scope
 

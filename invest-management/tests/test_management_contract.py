@@ -23,15 +23,25 @@ def identity() -> dict:
 
 def draft() -> dict:
     excerpt = "The regulator concluded its review and imposed a monetary sanction."
+    source = {
+        "source_id": "regulator", "source_type": "regulatory_release",
+        "title": "Enforcement outcome", "publisher": "Regulator",
+        "url": "https://www.sec.gov/Archives/enforcement.htm", "published_date": "2026-01-10",
+        "page_or_section": "Outcome", "accessed_date": "2026-07-01",
+    }
+    capture = {
+        "capture_schema_version": "1.0", "capture_method": "browser_open",
+        "tool_name": "test-browser", "tool_call_id": "fixture-regulator",
+        "captured_date": source["accessed_date"],
+        "snapshot_sha256": canonical_sha256({"source": "regulator"}),
+        "content_treatment": "untrusted_data_only", "prompt_injection_status": "not_detected",
+    }
+    capture["receipt_sha256"] = canonical_sha256(capture)
+    source["capture"] = capture
     return {
         "module": "management", "identity": identity(),
         "scope": {"type": "company", "name": "Test Co"},
-        "sources": [{
-            "source_id": "regulator", "source_type": "regulatory_release",
-            "title": "Enforcement outcome", "publisher": "Regulator",
-            "url": "https://www.sec.gov/Archives/enforcement.htm", "published_date": "2026-01-10",
-            "page_or_section": "Outcome", "accessed_date": "2026-07-01",
-        }],
+        "sources": [source],
         "evidence_claims": [{
             "claim_id": "claim_event", "source_id": "regulator",
             "target_type": "qualitative_assertion", "target_id": "event_1",
@@ -40,6 +50,7 @@ def draft() -> dict:
             "content_sha256": canonical_sha256({"source": "regulator"}),
             "verified_by": "unit-test", "verified_date": "2026-07-01",
             "verification_status": "opened_and_checked",
+            "capture_receipt_sha256": capture["receipt_sha256"],
         }],
         "data": {
             "qualitative_schema_version": "2.1",

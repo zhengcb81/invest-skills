@@ -2,7 +2,7 @@
 
 Use `module="moat"`, the exact company or segment scope, `low/base/high` only when conclusions are scenario bound, and the validated revenue result reference.
 
-Current suite 5.1 artifacts use `qualitative_schema_version="2.1"`. The `driver_registry` contains the exact upstream `growth_driver_summary_sha256`, selected `growth_driver_ids`, and optional `financial_line_ids`.
+Current suite 5.2 artifacts use `qualitative_schema_version="2.1"`. The `driver_registry` contains the exact upstream `growth_driver_summary_sha256`, selected `growth_driver_ids`, and optional `financial_line_ids`.
 
 For every mechanism record:
 

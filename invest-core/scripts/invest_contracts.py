@@ -19,11 +19,14 @@ from typing import Any, cast
 from urllib.parse import urlparse
 
 
-INVEST_SUITE_VERSION = "5.1.0"
-SUPPORTED_INVEST_SUITE_VERSIONS = {"4.0.0", "4.1.0", "4.2.0", "5.0.0", INVEST_SUITE_VERSION}
-ARTIFACT_SCHEMA_VERSION = "2.0"
-SUPPORTED_ARTIFACT_SCHEMA_VERSIONS = {"1.0", ARTIFACT_SCHEMA_VERSION}
-REVENUE_REFERENCE_SCHEMA_VERSION = "1.1"
+INVEST_SUITE_VERSION = "5.2.0"
+SUPPORTED_INVEST_SUITE_VERSIONS = {"4.0.0", "4.1.0", "4.2.0", "5.0.0", "5.1.0", INVEST_SUITE_VERSION}
+CURRENT_SEMANTIC_SUITE_VERSIONS = {"5.1.0", INVEST_SUITE_VERSION}
+ARTIFACT_SCHEMA_VERSION = "2.1"
+SUPPORTED_ARTIFACT_SCHEMA_VERSIONS = {"1.0", "2.0", ARTIFACT_SCHEMA_VERSION}
+ARTIFACT_COMPLIANCE_SCHEMA_VERSION = "1.0"
+REVENUE_REFERENCE_SCHEMA_VERSION = "1.2"
+SUPPORTED_REVENUE_REFERENCE_SCHEMA_VERSIONS = {"1.1", REVENUE_REFERENCE_SCHEMA_VERSION}
 REVENUE_ADAPTER_SCHEMA_VERSION = "1.1"
 SCENARIOS = ("low", "base", "high")
 MODULE_REGISTRY = {
@@ -74,7 +77,7 @@ def _fail(condition: object, message: str) -> None:
 
 def _skill_roots() -> list[Path]:
     here = Path(__file__).resolve().parents[1]
-    roots = [here.parent]
+    roots = [here.parent, here.parent.parent]
     home = Path.home()
     roots.extend([home / ".agents" / "skills", home / ".claude" / "skills", home / ".codex" / "skills"])
     return roots
@@ -323,6 +326,17 @@ def revenue_reference(result: dict[str, Any]) -> dict[str, Any]:
         "input_sha256": result["input_sha256"],
         "result_sha256": result["result_sha256"],
     }
+    workflow_receipt = result.get("workflow_compliance_receipt")
+    current_revenue_schema = revenue_runtime()[0].FORECAST_SCHEMA_VERSION
+    current_compliance = result["schema_version"] == current_revenue_schema and isinstance(workflow_receipt, dict)
+    workflow_receipt_sha256 = None
+    if current_compliance:
+        assert isinstance(workflow_receipt, dict)
+        workflow_receipt_sha256 = workflow_receipt["receipt_sha256"]
+    reference.update({
+        "revenue_compliance_status": "current_validated" if current_compliance else "legacy_read_only_validated",
+        "workflow_compliance_receipt_sha256": workflow_receipt_sha256,
+    })
     coverage = result.get("management_target_coverage")
     if coverage is None:
         reference.update({
@@ -489,7 +503,7 @@ def _validate_growth_driver_reference(ref: dict[str, Any], *, required: bool) ->
     status = ref.get("growth_driver_analysis_status")
     if version is None and status is None and not required:
         return
-    _fail(version == REVENUE_REFERENCE_SCHEMA_VERSION, "unsupported revenue reference schema version")
+    _fail(version in SUPPORTED_REVENUE_REFERENCE_SCHEMA_VERSIONS, "unsupported revenue reference schema version")
     _fail(status in {"validated", "data_gap", "legacy_not_available"}, "invalid growth driver analysis status")
     summary = ref.get("growth_driver_summary")
     _fail(isinstance(summary, dict) and set(summary) == GROWTH_DRIVER_SUMMARY_FIELDS, "invalid growth driver summary")
@@ -534,6 +548,21 @@ def _validate_growth_driver_reference(ref: dict[str, Any], *, required: bool) ->
     _fail(math.isclose(normalized_adjustment, float(reconciliation["unattributed_company_adjustments"]), rel_tol=0, abs_tol=1e-9), "growth driver adjustment reconciliation mismatch")
 
 
+def _validate_revenue_compliance_reference(ref: dict[str, Any], *, required: bool) -> None:
+    version = ref.get("revenue_reference_schema_version")
+    if version != REVENUE_REFERENCE_SCHEMA_VERSION and not required:
+        return
+    _fail(version == REVENUE_REFERENCE_SCHEMA_VERSION, "current artifact requires revenue reference schema 1.2")
+    status = ref.get("revenue_compliance_status")
+    _fail(status in {"current_validated", "legacy_read_only_validated"}, "invalid revenue compliance status")
+    receipt_hash = ref.get("workflow_compliance_receipt_sha256")
+    if status == "current_validated":
+        _fail(ref.get("schema_version") == revenue_runtime()[0].FORECAST_SCHEMA_VERSION, "current revenue compliance requires current forecast schema")
+        _fail(isinstance(receipt_hash, str) and HASH_PATTERN.fullmatch(receipt_hash) is not None, "invalid revenue workflow receipt hash")
+    else:
+        _fail(receipt_hash is None, "legacy revenue compliance cannot carry a current workflow receipt")
+
+
 def _normalize_revenue_reference(ref: dict[str, Any] | None) -> dict[str, Any] | None:
     if ref is None:
         return None
@@ -556,18 +585,24 @@ def _normalize_revenue_reference(ref: dict[str, Any] | None) -> dict[str, Any] |
             "growth_driver_summary": growth_summary,
             "growth_driver_summary_sha256": canonical_sha256(growth_summary),
         })
+    if normalized.get("revenue_reference_schema_version") == "1.1":
+        normalized["revenue_reference_schema_version"] = REVENUE_REFERENCE_SCHEMA_VERSION
+    if "revenue_compliance_status" not in normalized:
+        normalized["revenue_compliance_status"] = "legacy_read_only_validated"
+        normalized["workflow_compliance_receipt_sha256"] = None
     _validate_growth_driver_reference(normalized, required=True)
     return normalized
 
 
 def normalize_revenue_reference(ref: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Normalize a validated legacy or current revenue reference for suite-5.1 descendants."""
+    """Normalize a validated legacy or current revenue reference for suite-5.2 descendants."""
     normalized = _normalize_revenue_reference(ref)
     if normalized is None:
         return None
     for key in ("schema_version", "engine_version", "input_sha256", "result_sha256"):
         _fail(isinstance(normalized.get(key), str) and normalized[key], f"revenue reference missing {key}")
     _validate_management_target_reference(normalized, required=True)
+    _validate_revenue_compliance_reference(normalized, required=True)
     return normalized
 
 
@@ -617,7 +652,9 @@ def adapt_revenue(result: dict[str, Any], scope: str = "company", segment_name: 
     return adapter
 
 
-def _validate_sources(sources: Any, as_of_date: str) -> dict[str, dict[str, Any]]:
+def _validate_sources(
+    sources: Any, as_of_date: str, *, require_capture: bool = False,
+) -> dict[str, dict[str, Any]]:
     _fail(isinstance(sources, list), "sources must be a list")
     as_of = parse_iso_date(as_of_date, "as_of_date")
     index: dict[str, dict[str, Any]] = {}
@@ -634,6 +671,11 @@ def _validate_sources(sources: Any, as_of_date: str) -> dict[str, dict[str, Any]
         _fail(published <= as_of, f"future information leak: {source_id}")
         if source.get("accessed_date") is not None:
             parse_iso_date(source["accessed_date"], f"{source_id}.accessed_date")
+        if require_capture:
+            try:
+                revenue_runtime()[0].validate_source_capture(source, as_of)
+            except Exception as exc:
+                raise InvestmentArtifactError(f"invalid source capture {source_id}: {exc}") from exc
         index[source_id] = dict(source)
     return index
 
@@ -818,7 +860,14 @@ def _validate_parameters(parameters: Any, source_index: dict[str, dict[str, Any]
     return index
 
 
-def _validate_claims(claims: Any, source_index: dict[str, dict[str, Any]], parameter_index: dict[str, dict[str, Any]], as_of_date: str) -> dict[str, dict[str, Any]]:
+def _validate_claims(
+    claims: Any,
+    source_index: dict[str, dict[str, Any]],
+    parameter_index: dict[str, dict[str, Any]],
+    as_of_date: str,
+    *,
+    require_capture: bool = False,
+) -> dict[str, dict[str, Any]]:
     _fail(isinstance(claims, list), "evidence_claims must be a list")
     as_of = parse_iso_date(as_of_date, "as_of_date")
     index: dict[str, dict[str, Any]] = {}
@@ -839,6 +888,12 @@ def _validate_claims(claims: Any, source_index: dict[str, dict[str, Any]], param
         _fail(claim.get("excerpt_sha256") == text_sha256(excerpt), f"claim excerpt hash mismatch: {claim_id}")
         _fail(isinstance(claim.get("content_sha256"), str) and re.fullmatch(r"[0-9a-f]{64}", claim["content_sha256"]) is not None, f"invalid content hash: {claim_id}")
         _fail(claim.get("verification_status") == "opened_and_checked", f"claim must be opened_and_checked: {claim_id}")
+        if require_capture:
+            source_capture = source_index[claim["source_id"]].get("capture")
+            _fail(isinstance(source_capture, dict), f"claim source capture is missing: {claim_id}")
+            assert isinstance(source_capture, dict)
+            _fail(claim.get("capture_receipt_sha256") == source_capture["receipt_sha256"], f"claim capture receipt mismatch: {claim_id}")
+            _fail(claim["content_sha256"] == source_capture["snapshot_sha256"], f"claim/source snapshot mismatch: {claim_id}")
         verified = parse_iso_date(claim.get("verified_date"), f"{claim_id}.verified_date")
         published = parse_iso_date(source_index[claim["source_id"]]["published_date"], "published_date")
         _fail(published <= verified <= as_of, f"claim verification outside information set: {claim_id}")
@@ -932,7 +987,7 @@ def _validate_management_data(
     data: dict[str, Any], claim_index: dict[str, dict[str, Any]], identity: dict[str, Any], scenario_set: list[str],
     revenue_ref: dict[str, Any] | None, suite_version: str,
 ) -> None:
-    expected_version = "2.1" if suite_version == INVEST_SUITE_VERSION else "2.0"
+    expected_version = "2.1" if suite_version in CURRENT_SEMANTIC_SUITE_VERSIONS else "2.0"
     _fail(data.get("qualitative_schema_version") == expected_version, f"management qualitative_schema_version must be {expected_version}")
     _fail(scenario_set == [], "management artifact must be non-scenario")
     facts = _validate_qualitative_facts(data.get("facts"), claim_index, identity["as_of_date"])
@@ -998,7 +1053,7 @@ def _validate_moat_data(
     data: dict[str, Any], claim_index: dict[str, dict[str, Any]], identity: dict[str, Any], revenue_ref: dict[str, Any] | None,
     suite_version: str,
 ) -> None:
-    expected_version = "2.1" if suite_version == INVEST_SUITE_VERSION else "2.0"
+    expected_version = "2.1" if suite_version in CURRENT_SEMANTIC_SUITE_VERSIONS else "2.0"
     _fail(data.get("qualitative_schema_version") == expected_version, f"moat qualitative_schema_version must be {expected_version}")
     facts = _validate_qualitative_facts(data.get("facts"), claim_index, identity["as_of_date"])
     registry = data.get("driver_registry")
@@ -1064,6 +1119,52 @@ def artifact_reference(artifact: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def build_artifact_compliance_receipt(
+    module: str,
+    revenue_forecast_ref: dict[str, Any] | None,
+    upstream_refs: list[dict[str, Any]],
+    sources: list[dict[str, Any]],
+    parameters: list[dict[str, Any]],
+    evidence_claims: list[dict[str, Any]],
+    data: dict[str, Any],
+    limitations: list[str],
+) -> dict[str, Any]:
+    """Build the shared, machine-recomputed artifact-contract receipt."""
+    for source in sources:
+        _fail(isinstance(source.get("capture"), dict), f"source capture is required: {source.get('source_id', '<unknown>')}")
+    capture_hashes = sorted(source["capture"]["receipt_sha256"] for source in sources)
+    receipt = {
+        "compliance_schema_version": ARTIFACT_COMPLIANCE_SCHEMA_VERSION,
+        "status": "pass",
+        "execution_mode": "deterministic_runtime",
+        "module": module,
+        "contract_validator_ids": [
+            "invest_core.envelope", "invest_core.lineage", "invest_core.source_capture",
+            "invest_core.evidence_claims", "invest_core.content_hash",
+        ],
+        "revenue_result_sha256": None if revenue_forecast_ref is None else revenue_forecast_ref["result_sha256"],
+        "upstream_artifact_sha256s": sorted(item["artifact_sha256"] for item in upstream_refs),
+        "source_capture_receipt_sha256s": capture_hashes,
+        "source_capture_count": len(capture_hashes),
+        "checked_claim_count": len(evidence_claims),
+        "assumption_parameter_ids": sorted(
+            parameter["parameter_id"] for parameter in parameters
+            if parameter["kind"] in {"analyst_assumption", "scenario_stress"}
+        ),
+        "artifact_data_sha256": canonical_sha256(data),
+        "limitations_sha256": canonical_sha256(limitations),
+        "prompt_injection_flagged_source_ids": sorted(
+            source["source_id"] for source in sources
+            if source["capture"]["prompt_injection_status"] == "detected_and_ignored"
+        ),
+        "untrusted_content_treatment": "data_only_never_instructions",
+        "formal_output_authority": "validated_artifact_or_bundle_renderer_only",
+        "freeform_formal_output_allowed": False,
+    }
+    receipt["receipt_sha256"] = canonical_sha256(receipt)
+    return receipt
+
+
 def create_artifact(
     module: str,
     identity: dict[str, Any],
@@ -1082,6 +1183,11 @@ def create_artifact(
     _fail(module in MODULE_REGISTRY, f"unknown module: {module}")
     upstream_refs = [artifact_reference(item) for item in (upstream_artifacts or [])]
     normalized_scenario_set = list(scenario_set or [])
+    normalized_sources = list(sources or [])
+    normalized_parameters = list(parameters or [])
+    normalized_claims = list(evidence_claims or [])
+    normalized_limitations = list(limitations or [])
+    normalized_revenue_ref = normalize_revenue_reference(revenue_forecast_ref)
     artifact_body = {
         "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
         "invest_suite_version": INVEST_SUITE_VERSION,
@@ -1090,14 +1196,18 @@ def create_artifact(
         "scope": dict(scope),
         "scenario_set": normalized_scenario_set,
         "scenario_manifest": build_scenario_manifest(normalized_scenario_set, scenario_manifest),
-        "revenue_forecast_ref": normalize_revenue_reference(revenue_forecast_ref),
+        "revenue_forecast_ref": normalized_revenue_ref,
         "upstream_artifacts": upstream_refs,
-        "sources": list(sources or []),
-        "parameters": list(parameters or []),
-        "evidence_claims": list(evidence_claims or []),
+        "sources": normalized_sources,
+        "parameters": normalized_parameters,
+        "evidence_claims": normalized_claims,
         "data": data,
-        "limitations": list(limitations or []),
+        "limitations": normalized_limitations,
     }
+    artifact_body["compliance_receipt"] = build_artifact_compliance_receipt(
+        module, normalized_revenue_ref, upstream_refs, normalized_sources,
+        normalized_parameters, normalized_claims, data, normalized_limitations,
+    )
     artifact = {**artifact_body, "artifact_id": canonical_sha256(artifact_body)}
     artifact["artifact_sha256"] = canonical_sha256(artifact)
     validate_artifact(artifact)
@@ -1116,12 +1226,17 @@ def _validate_artifact_envelope(artifact: dict[str, Any]) -> tuple[str, bool, st
     suite_version = artifact["invest_suite_version"]
     _fail(schema_version in SUPPORTED_ARTIFACT_SCHEMA_VERSIONS, "unsupported artifact schema version")
     _fail(suite_version in SUPPORTED_INVEST_SUITE_VERSIONS, "unsupported invest suite version")
-    strict = schema_version == ARTIFACT_SCHEMA_VERSION
+    strict = schema_version in {"2.0", ARTIFACT_SCHEMA_VERSION}
+    current = schema_version == ARTIFACT_SCHEMA_VERSION
     if strict:
         _fail("scenario_manifest" in artifact, "artifact missing field: scenario_manifest")
-        _fail(suite_version in {"5.0.0", INVEST_SUITE_VERSION}, "artifact schema 2.0 requires invest suite 5.0.0 or 5.1.0")
+    if current:
+        _fail(suite_version == INVEST_SUITE_VERSION, "artifact schema 2.1 requires invest suite 5.2.0")
+        _fail("compliance_receipt" in artifact, "artifact missing field: compliance_receipt")
+    elif schema_version == "2.0":
+        _fail(suite_version in {"5.0.0", "5.1.0"}, "artifact schema 2.0 requires invest suite 5.0.0 or 5.1.0")
     else:
-        _fail(suite_version not in {"5.0.0", INVEST_SUITE_VERSION}, "invest suite 5.x requires artifact schema 2.0")
+        _fail(suite_version not in {"5.0.0", "5.1.0", INVEST_SUITE_VERSION}, "invest suite 5.x requires artifact schema 2.x")
     module = artifact["module"]
     _fail(module in MODULE_REGISTRY, f"unknown module: {module}")
     assert isinstance(module, str)
@@ -1168,7 +1283,8 @@ def _validate_artifact_revenue_reference(module: str, ref: Any, strict: bool, su
     for key in ("schema_version", "engine_version", "input_sha256", "result_sha256"):
         _fail(isinstance(ref.get(key), str) and ref[key], f"revenue reference missing {key}")
     _validate_management_target_reference(ref, required=strict)
-    _validate_growth_driver_reference(ref, required=suite_version == INVEST_SUITE_VERSION)
+    _validate_growth_driver_reference(ref, required=suite_version in CURRENT_SEMANTIC_SUITE_VERSIONS)
+    _validate_revenue_compliance_reference(ref, required=suite_version == INVEST_SUITE_VERSION)
 
 
 def _validate_artifact_upstream(module: str, upstream: Any) -> None:
@@ -1199,6 +1315,7 @@ def validate_artifact(artifact: dict[str, Any]) -> None:
     _fail(isinstance(artifact, dict), "artifact must be an object")
     _validate_finite_json(artifact, "artifact")
     module, strict, suite_version = _validate_artifact_envelope(artifact)
+    current = artifact["artifact_schema_version"] == ARTIFACT_SCHEMA_VERSION
     identity = _validate_artifact_scope(artifact, strict)
     scenario_set = _validate_artifact_scenarios(artifact, strict)
     _fail(isinstance(artifact["limitations"], list) and all(isinstance(item, str) and item.strip() for item in artifact["limitations"]), "limitations must contain strings")
@@ -1207,13 +1324,23 @@ def validate_artifact(artifact: dict[str, Any]) -> None:
     ref = artifact["revenue_forecast_ref"]
     _validate_artifact_revenue_reference(module, ref, strict, suite_version)
     _validate_artifact_upstream(module, artifact["upstream_artifacts"])
-    source_index = _validate_sources(artifact["sources"], identity["as_of_date"])
+    source_index = _validate_sources(artifact["sources"], identity["as_of_date"], require_capture=current)
     parameter_index = _validate_parameters(artifact["parameters"], source_index, identity)
-    claim_index = _validate_claims(artifact["evidence_claims"], source_index, parameter_index, identity["as_of_date"])
+    claim_index = _validate_claims(
+        artifact["evidence_claims"], source_index, parameter_index, identity["as_of_date"],
+        require_capture=current,
+    )
     if strict and module == "management":
         _validate_management_data(artifact["data"], claim_index, identity, scenario_set, ref, suite_version)
     if strict and module == "moat":
         _validate_moat_data(artifact["data"], claim_index, identity, ref, suite_version)
+    if current:
+        expected_receipt = build_artifact_compliance_receipt(
+            module, ref, artifact["upstream_artifacts"], artifact["sources"],
+            artifact["parameters"], artifact["evidence_claims"], artifact["data"],
+            artifact["limitations"],
+        )
+        _fail(artifact["compliance_receipt"] == expected_receipt, "artifact compliance receipt mismatch")
     _validate_artifact_content_hashes(artifact, strict)
 
 

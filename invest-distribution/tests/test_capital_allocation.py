@@ -19,6 +19,7 @@ from invest_contracts import (  # noqa: E402
     InvestmentArtifactError, canonical_sha256, text_sha256, validate_artifact,
 )
 from revenue_fixtures import load_revenue_fixture  # noqa: E402
+from artifact_test_utils import reseal_artifact  # noqa: E402
 
 
 def financials() -> dict:
@@ -58,14 +59,26 @@ def model() -> dict:
         "acquisition_spend": [30, 10], "impairments": [0, 5], "internal_reinvestment": [50, 60], "share_count": [100, 98],
     }
     sources = []
+    captures: dict[int, dict] = {}
     for year in (2024, 2025):
-        sources.append({
+        source = {
             "source_id": f"filing_{year}", "source_type": "exchange_filing",
             "title": f"FY{year} filing", "publisher": "Exchange",
             "url": f"https://www.sec.gov/Archives/filing-{year}.htm",
             "published_date": f"{year + 1}-03-01", "accessed_date": "2026-07-01",
             "page_or_section": "Capital allocation table",
-        })
+        }
+        capture = {
+            "capture_schema_version": "1.0", "capture_method": "browser_open",
+            "tool_name": "test-browser", "tool_call_id": f"fixture-filing-{year}",
+            "captured_date": source["accessed_date"],
+            "snapshot_sha256": canonical_sha256({"year": year, "document": "capital allocation table"}),
+            "content_treatment": "untrusted_data_only", "prompt_injection_status": "not_detected",
+        }
+        capture["receipt_sha256"] = canonical_sha256(capture)
+        source["capture"] = capture
+        captures[year] = capture
+        sources.append(source)
     params = []
     claims = []
     for measure, series in values.items():
@@ -87,9 +100,10 @@ def model() -> dict:
                 "claim_id": claim_id, "source_id": f"filing_{year}", "target_type": "parameter",
                 "target_id": parameter_id, "support_type": "exact_value", "locator": f"Capital allocation/{measure}",
                 "excerpt": excerpt, "excerpt_sha256": text_sha256(excerpt),
-                "content_sha256": canonical_sha256({"year": year, "measure": measure}),
+                "content_sha256": captures[year]["snapshot_sha256"],
                 "verified_by": "unit-test", "verified_date": "2026-07-01",
                 "verification_status": "opened_and_checked", "extracted_value": value,
+                "capture_receipt_sha256": captures[year]["receipt_sha256"],
                 "unit": unit, "period": f"FY{year}",
             })
     return {
@@ -127,9 +141,7 @@ class CapitalAllocationTests(unittest.TestCase):
     def test_semantic_validator_recomputes_distribution(self) -> None:
         artifact = run_capital_allocation(financials(), model())
         artifact["data"]["share_count_cagr"] = 0.99
-        body = {key: value for key, value in artifact.items() if key not in {"artifact_id", "artifact_sha256"}}
-        artifact["artifact_id"] = canonical_sha256(body)
-        artifact["artifact_sha256"] = canonical_sha256({key: value for key, value in artifact.items() if key != "artifact_sha256"})
+        reseal_artifact(artifact)
         with self.assertRaisesRegex(InvestmentArtifactError, "semantic recomputation"):
             validate_distribution_artifact(artifact)
 

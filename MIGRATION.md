@@ -1,4 +1,13 @@
-# Migration to invest-suite 5.1
+# Migration to invest-suite 5.2
+
+## From 5.1 to 5.2
+
+1. Keep suite-5.1/artifact-2.0 files immutable. Runtime 5.2 validates them as `legacy_read_only_validated`; it does not add capture receipts.
+2. Rerun revenue-forecast 3.5 with schema 3.4 sources and claims to obtain a workflow compliance receipt. Do not hand-add capture or receipt fields to an old output.
+3. New revenue references use schema 1.2 and explicitly carry current versus legacy status plus the current workflow-receipt hash.
+4. New module artifacts use schema 2.1. Every direct source/claim binds to a capture snapshot and every artifact carries a recomputed compliance receipt.
+5. Publish a formal company report only through `company_orchestrator.py`; its schema-2.1 execution receipt freezes ordered states, leaf compliance hashes, and the exact renderer output.
+6. Leaf business formulas, qualitative schema 2.1, bundle data 2.1, comparison model 2.1, and revenue adapter 1.1 are unchanged.
 
 ## From 5.0 to 5.1
 

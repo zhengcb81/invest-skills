@@ -20,7 +20,7 @@ for path in (
     sys.path.insert(0, str(path))
 sys.path.insert(0, str(SUITE / "tests_support"))
 
-from company_orchestrator import run_company, write_execution  # noqa: E402
+from company_orchestrator import run_company, validate_execution, write_execution  # noqa: E402
 from invest_contracts import InvestmentArtifactError, finalize_draft, validate_artifact  # noqa: E402
 from revenue_fixtures import load_revenue_fixture  # noqa: E402
 
@@ -334,6 +334,26 @@ class CompanyOrchestratorTests(unittest.TestCase):
         execution = run_company(manifest, forecast, [management])
         self.assertEqual(execution["receipt"]["supplemental_count"], 1)
         self.assertEqual(execution["bundle"]["data"]["module_counts"]["management"], 1)
+
+    def test_freeform_report_override_is_rejected(self) -> None:
+        forecast = forecast_result()
+        execution = run_company(manifest_for(forecast), forecast)
+        execution["report_markdown"] += "\nUnvalidated model-written conclusion.\n"
+        with self.assertRaisesRegex(InvestmentArtifactError, "validated bundle renderer"):
+            validate_execution(execution)
+
+    def test_skipped_state_transition_is_rejected(self) -> None:
+        forecast = forecast_result()
+        execution = run_company(manifest_for(forecast), forecast)
+        execution["receipt"]["state_transitions"].pop()
+        with self.assertRaisesRegex(InvestmentArtifactError, "execution receipt mismatch"):
+            validate_execution(execution)
+
+    def test_legacy_revenue_is_explicitly_labeled_not_current_compliant(self) -> None:
+        forecast = forecast_result()
+        execution = run_company(manifest_for(forecast), forecast)
+        self.assertEqual(execution["receipt"]["revenue_compliance_status"], "legacy_read_only_validated")
+        self.assertIsNone(execution["receipt"]["revenue_workflow_receipt_sha256"])
 
 
 if __name__ == "__main__":

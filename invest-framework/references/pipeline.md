@@ -36,4 +36,6 @@ For a growth-driver comparison, first produce one validated framework bundle per
 - Optional qualitative modules can be omitted with an explicit limitation. Quantitative dependencies cannot be skipped.
 - The framework report preserves standalone method outputs and disagreements; it does not force a consensus score.
 - A manifest-driven execution freezes the complete manifest and revenue result, then binds their hashes, the scenario-manifest hash, every leaf artifact hash, the final bundle hash, and a machine-readable receipt.
+- The schema-2.1 execution receipt also freezes the ordered pass-state transitions, every leaf compliance-receipt hash, revenue current/legacy compliance status, final renderer hash, and output inventory. Missing or reordered states fail.
 - All leaf calculations complete and validate in memory before output publication. An existing output path or any failed leaf blocks publication.
+- Formal Markdown is read-only output from the validated bundle renderer; free text cannot override it.
