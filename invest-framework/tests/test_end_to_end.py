@@ -14,6 +14,13 @@ for path in (
 ):
     sys.path.insert(0, str(path))
 sys.path.insert(0, str(SUITE / "tests_support"))
+_AGENTS = Path.home() / ".agents" / "skills"
+for _leaf in ("invest-financials", "invest-moat", "invest-management",
+               "invest-distribution", "invest-valuation", "invest-sotp",
+               "invest-compare", "invest-psychology"):
+    _leaf_scripts = _AGENTS / _leaf / "scripts"
+    if _leaf_scripts.is_dir() and str(_leaf_scripts) not in sys.path:
+        sys.path.insert(0, str(_leaf_scripts))
 
 from bundle_validator import run_bundle  # noqa: E402
 from financial_model import run_financial_model  # noqa: E402

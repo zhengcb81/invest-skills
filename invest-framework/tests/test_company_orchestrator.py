@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,13 @@ for path in (
 ):
     sys.path.insert(0, str(path))
 sys.path.insert(0, str(SUITE / "tests_support"))
+_AGENTS = Path.home() / ".agents" / "skills"
+for _leaf in ("invest-financials", "invest-moat", "invest-management",
+               "invest-distribution", "invest-valuation", "invest-sotp",
+               "invest-compare", "invest-psychology"):
+    _leaf_scripts = _AGENTS / _leaf / "scripts"
+    if _leaf_scripts.is_dir() and str(_leaf_scripts) not in sys.path:
+        sys.path.insert(0, str(_leaf_scripts))
 
 from company_orchestrator import run_company, validate_execution, write_execution  # noqa: E402
 from invest_contracts import InvestmentArtifactError, finalize_draft, validate_artifact  # noqa: E402
@@ -31,6 +39,10 @@ def forecast_result() -> dict:
 
 def heterogeneous_forecast_result() -> dict:
     return load_revenue_fixture("heterogeneous")
+
+
+def legacy_forecast_result() -> dict:
+    return load_revenue_fixture("legacy")
 def manifest_for(forecast: dict) -> dict:
     identity = {
         key: forecast[key]
@@ -265,17 +277,27 @@ class CompanyOrchestratorTests(unittest.TestCase):
             output = root / "analysis"
             forecast_path.write_text(json.dumps(forecast, ensure_ascii=False), encoding="utf-8")
             manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+            env = dict(os.environ)
+            cli_paths = [
+                str(SUITE / "revenue-forecast" / "scripts"),
+                str(SUITE / "invest-core" / "scripts"),
+                str(Path(__file__).resolve().parents[1] / "scripts"),
+            ] + [
+                str(Path.home() / ".agents" / "skills" / leaf / "scripts")
+                for leaf in ("invest-financials", "invest-moat", "invest-management",
+                             "invest-distribution", "invest-valuation", "invest-sotp",
+                             "invest-compare", "invest-psychology")
+            ]
+            env["PYTHONPATH"] = os.pathsep.join(cli_paths)
             completed = subprocess.run(
                 [sys.executable, str(script), str(manifest_path), str(forecast_path), "--output-dir", str(output)],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                check=False,
+                capture_output=True, text=True, encoding="utf-8", check=False, env=env,
             )
             self.assertEqual(completed.returncode, 0, completed.stderr)
-            self.assertEqual(json.loads((output / "receipt.json").read_text(encoding="utf-8"))["status"], "pass")
-            self.assertTrue((output / "sotp.json").exists())
-            self.assertTrue((output / "bundle.json").exists())
+            if completed.returncode == 0:
+                self.assertEqual(json.loads((output / "receipt.json").read_text(encoding="utf-8"))["status"], "pass")
+                self.assertTrue((output / "sotp.json").exists())
+                self.assertTrue((output / "bundle.json").exists())
 
     def test_cli_failure_writes_only_a_machine_readable_failure_receipt(self) -> None:
         forecast = forecast_result()
@@ -289,12 +311,21 @@ class CompanyOrchestratorTests(unittest.TestCase):
             output = root / "analysis"
             forecast_path.write_text(json.dumps(forecast, ensure_ascii=False), encoding="utf-8")
             manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+            env = dict(os.environ)
+            cli_paths = [
+                str(SUITE / "revenue-forecast" / "scripts"),
+                str(SUITE / "invest-core" / "scripts"),
+                str(Path(__file__).resolve().parents[1] / "scripts"),
+            ] + [
+                str(Path.home() / ".agents" / "skills" / leaf / "scripts")
+                for leaf in ("invest-financials", "invest-moat", "invest-management",
+                             "invest-distribution", "invest-valuation", "invest-sotp",
+                             "invest-compare", "invest-psychology")
+            ]
+            env["PYTHONPATH"] = os.pathsep.join(cli_paths)
             completed = subprocess.run(
                 [sys.executable, str(script), str(manifest_path), str(forecast_path), "--output-dir", str(output)],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                check=False,
+                capture_output=True, text=True, encoding="utf-8", check=False, env=env,
             )
             self.assertEqual(completed.returncode, 1)
             self.assertFalse(output.exists())
@@ -350,7 +381,7 @@ class CompanyOrchestratorTests(unittest.TestCase):
             validate_execution(execution)
 
     def test_legacy_revenue_is_explicitly_labeled_not_current_compliant(self) -> None:
-        forecast = forecast_result()
+        forecast = legacy_forecast_result()
         execution = run_company(manifest_for(forecast), forecast)
         self.assertEqual(execution["receipt"]["revenue_compliance_status"], "legacy_read_only_validated")
         self.assertIsNone(execution["receipt"]["revenue_workflow_receipt_sha256"])

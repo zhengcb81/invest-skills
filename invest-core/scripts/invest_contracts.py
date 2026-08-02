@@ -106,6 +106,16 @@ def revenue_runtime() -> tuple[Any, Any, Path]:
         report = importlib.import_module("revenue_report")
     except Exception as exc:  # pragma: no cover - diagnostic boundary
         raise InvestmentArtifactError(f"failed to load revenue-forecast runtime: {exc}") from exc
+    # Verify the module was loaded from the expected skill directory.
+    # Python's ``sys.modules`` cache can silently reuse a previously loaded
+    # ``revenue_core`` from a different installation; fail-closed on mismatch.
+    core_file = Path(getattr(core, "__file__", "")).resolve()
+    expected = (scripts / "revenue_core.py").resolve()
+    if core_file != expected:
+        raise InvestmentArtifactError(
+            f"revenue_core loaded from {core_file}, expected {expected}. "
+            "A different version may already be in sys.modules."
+        )
     return core, report, skill_dir
 
 
@@ -326,6 +336,9 @@ def revenue_reference(result: dict[str, Any]) -> dict[str, Any]:
         "input_sha256": result["input_sha256"],
         "result_sha256": result["result_sha256"],
     }
+    publication_receipt = result.get("publication_receipt")
+    if isinstance(publication_receipt, dict) and publication_receipt.get("receipt_sha256"):
+        reference["publication_receipt_sha256"] = publication_receipt["receipt_sha256"]
     workflow_receipt = result.get("workflow_compliance_receipt")
     current_revenue_schema = revenue_runtime()[0].FORECAST_SCHEMA_VERSION
     current_compliance = result["schema_version"] == current_revenue_schema and isinstance(workflow_receipt, dict)
@@ -603,10 +616,33 @@ def normalize_revenue_reference(ref: dict[str, Any] | None) -> dict[str, Any] | 
         _fail(isinstance(normalized.get(key), str) and normalized[key], f"revenue reference missing {key}")
     _validate_management_target_reference(normalized, required=True)
     _validate_revenue_compliance_reference(normalized, required=True)
+    # Phase 11.3: a schema 3.5 reference must bind to its publication receipt so
+    # the scenario manifest and every downstream artifact trace back to one
+    # formally-published revenue result.
+    if normalized.get("schema_version") == "3.5":
+        receipt_sha = normalized.get("publication_receipt_sha256")
+        _fail(
+            isinstance(receipt_sha, str) and receipt_sha,
+            "schema 3.5 revenue reference must carry publication_receipt_sha256",
+        )
     return normalized
 
 
 def adapt_revenue(result: dict[str, Any], scope: str = "company", segment_name: str | None = None) -> dict[str, Any]:
+    # Publication gate (Phase 11.1): only accept schema 3.5 results whose
+    # publication receipt is valid, formal, and carries the output-recomputation
+    # gate.  Legacy schema results or drafts must never start a new financial
+    # or valuation DAG.
+    receipt = result.get("publication_receipt")
+    _fail(isinstance(receipt, dict), "revenue result missing a valid publication_receipt")
+    _fail(receipt.get("schema_version") == result["schema_version"], "publication_receipt schema_version mismatch")
+    _fail(receipt.get("engine_version") == result["engine_version"], "publication_receipt engine_version mismatch")
+    _fail(receipt.get("validated_input_sha256") == result["input_sha256"], "publication_receipt input hash mismatch")
+    _fail(receipt.get("formal_output_mode") == "formal", "invest-* must only consume formal (non-draft) revenue artifacts")
+    _fail(receipt.get("freeform_override_allowed") is False, "publication_receipt must forbid freeform override")
+    _fail("output_recomputation" in receipt.get("gate_ids", []), "publication_receipt must certify the output_recomputation gate")
+    expected_receipt_sha = canonical_sha256({k: v for k, v in receipt.items() if k != "receipt_sha256"})
+    _fail(receipt.get("receipt_sha256") == expected_receipt_sha, "publication_receipt receipt_sha256 mismatch")
     ref = revenue_reference(result)
     _fail(scope in {"company", "segment"}, "scope must be company or segment")
     years = [str(year) for year in result["forecast_years"]]

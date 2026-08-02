@@ -6,9 +6,17 @@ from pathlib import Path
 
 
 SUITE = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(SUITE / "revenue-forecast" / "scripts"))
 sys.path.insert(0, str(SUITE / "invest-core" / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 sys.path.insert(0, str(SUITE / "tests_support"))
+_AGENTS = Path.home() / ".agents" / "skills"
+for _leaf in ("invest-financials", "invest-moat", "invest-management",
+               "invest-distribution", "invest-valuation", "invest-sotp",
+               "invest-compare", "invest-psychology"):
+    _leaf_scripts = _AGENTS / _leaf / "scripts"
+    if _leaf_scripts.is_dir() and str(_leaf_scripts) not in sys.path:
+        sys.path.insert(0, str(_leaf_scripts))
 
 from bundle_validator import render_bundle_markdown, run_bundle, validate_bundle_artifact  # noqa: E402
 from invest_contracts import InvestmentArtifactError, SCENARIOS, artifact_reference, canonical_sha256, create_artifact, revenue_reference, validate_artifact  # noqa: E402
