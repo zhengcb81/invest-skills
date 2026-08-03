@@ -635,6 +635,7 @@ def adapt_revenue(result: dict[str, Any], scope: str = "company", segment_name: 
     # or valuation DAG.
     receipt = result.get("publication_receipt")
     _fail(isinstance(receipt, dict), "revenue result missing a valid publication_receipt")
+    assert isinstance(receipt, dict)
     _fail(receipt.get("schema_version") == result["schema_version"], "publication_receipt schema_version mismatch")
     _fail(receipt.get("engine_version") == result["engine_version"], "publication_receipt engine_version mismatch")
     _fail(receipt.get("validated_input_sha256") == result["input_sha256"], "publication_receipt input hash mismatch")
