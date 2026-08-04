@@ -42,12 +42,31 @@ def evidence() -> tuple[list[dict], list[dict], list[dict]]:
         "page_or_section": "Income statement",
     }
     capture = {
-        "capture_schema_version": "1.0", "capture_method": "browser_open",
-        "tool_name": "test-browser", "tool_call_id": "fixture-filing",
+        "capture_schema_version": "1.0",
+        "capture_method": "browser_open",
+        "tool_name": "test-browser",
+        "tool_call_id": "fixture-filing",
         "captured_date": source["accessed_date"],
         "snapshot_sha256": canonical_sha256({"page": "income statement"}),
-        "content_treatment": "untrusted_data_only", "prompt_injection_status": "not_detected",
+        "content_treatment": "untrusted_data_only",
+        "prompt_injection_status": "not_detected",
     }
+    capture["host_receipt"] = {
+        "host_receipt_schema_version": "1.0",
+        "issuer": "fixture-host",
+        "environment": "test",
+        "tool_name": capture["tool_name"],
+        "action": "capture_open",
+        "event_sha256": canonical_sha256({"page": "income statement"}),
+        "timestamp": source["accessed_date"],
+    }
+    capture["host_receipt"]["receipt_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in capture["host_receipt"].items()
+            if key != "receipt_sha256"
+        }
+    )
     capture["receipt_sha256"] = canonical_sha256(capture)
     source["capture"] = capture
     parameter = {
@@ -89,9 +108,14 @@ def evidence() -> tuple[list[dict], list[dict], list[dict]]:
 
 def management_data() -> dict:
     return {
-        "qualitative_schema_version": "2.1", "facts": [], "interpretations": [],
-        "commitment_assessments": [], "red_flag_interpretation_ids": [],
-        "execution_driver_assessments": [], "disconfirming_fact_ids": [], "data_gaps": [],
+        "qualitative_schema_version": "2.1",
+        "facts": [],
+        "interpretations": [],
+        "commitment_assessments": [],
+        "red_flag_interpretation_ids": [],
+        "execution_driver_assessments": [],
+        "disconfirming_fact_ids": [],
+        "data_gaps": [],
     }
 
 
@@ -99,74 +123,125 @@ class ContractTests(unittest.TestCase):
     def test_create_and_validate_artifact(self) -> None:
         sources, parameters, claims = evidence()
         artifact = create_artifact(
-            "management", identity(), {"type": "company", "name": "Test Co"},
-            management_data(), sources=sources, parameters=parameters,
-            evidence_claims=claims, limitations=["Synthetic fixture"],
+            "management",
+            identity(),
+            {"type": "company", "name": "Test Co"},
+            management_data(),
+            sources=sources,
+            parameters=parameters,
+            evidence_claims=claims,
+            limitations=["Synthetic fixture"],
         )
         validate_artifact(artifact)
 
     def test_current_artifact_requires_captured_sources(self) -> None:
         sources, parameters, claims = evidence()
         del sources[0]["capture"]
-        with self.assertRaisesRegex(InvestmentArtifactError, "source capture is required"):
+        with self.assertRaisesRegex(
+            InvestmentArtifactError, "source capture is required"
+        ):
             create_artifact(
-                "management", identity(), {"type": "company", "name": "Test Co"},
-                management_data(), sources=sources, parameters=parameters, evidence_claims=claims,
+                "management",
+                identity(),
+                {"type": "company", "name": "Test Co"},
+                management_data(),
+                sources=sources,
+                parameters=parameters,
+                evidence_claims=claims,
             )
 
     def test_claim_must_bind_to_source_capture(self) -> None:
         sources, parameters, claims = evidence()
         claims[0]["capture_receipt_sha256"] = "b" * 64
-        with self.assertRaisesRegex(InvestmentArtifactError, "claim capture receipt mismatch"):
+        with self.assertRaisesRegex(
+            InvestmentArtifactError, "claim capture receipt mismatch"
+        ):
             create_artifact(
-                "management", identity(), {"type": "company", "name": "Test Co"},
-                management_data(), sources=sources, parameters=parameters, evidence_claims=claims,
+                "management",
+                identity(),
+                {"type": "company", "name": "Test Co"},
+                management_data(),
+                sources=sources,
+                parameters=parameters,
+                evidence_claims=claims,
             )
 
     def test_rehashed_compliance_override_is_rejected(self) -> None:
         artifact = create_artifact(
-            "psychology", identity(), {"type": "company", "name": "Test Co"},
-            {"user_answers": {}}, limitations=["Synthetic"],
+            "psychology",
+            identity(),
+            {"type": "company", "name": "Test Co"},
+            {"user_answers": {}},
+            limitations=["Synthetic"],
         )
         artifact["compliance_receipt"]["freeform_formal_output_allowed"] = True
-        artifact["compliance_receipt"]["receipt_sha256"] = canonical_sha256({
-            key: value for key, value in artifact["compliance_receipt"].items()
-            if key != "receipt_sha256"
-        })
-        body = {key: value for key, value in artifact.items() if key not in {"artifact_id", "artifact_sha256"}}
+        artifact["compliance_receipt"]["receipt_sha256"] = canonical_sha256(
+            {
+                key: value
+                for key, value in artifact["compliance_receipt"].items()
+                if key != "receipt_sha256"
+            }
+        )
+        body = {
+            key: value
+            for key, value in artifact.items()
+            if key not in {"artifact_id", "artifact_sha256"}
+        }
         artifact["artifact_id"] = canonical_sha256(body)
-        artifact["artifact_sha256"] = canonical_sha256({key: value for key, value in artifact.items() if key != "artifact_sha256"})
-        with self.assertRaisesRegex(InvestmentArtifactError, "artifact compliance receipt mismatch"):
+        artifact["artifact_sha256"] = canonical_sha256(
+            {key: value for key, value in artifact.items() if key != "artifact_sha256"}
+        )
+        with self.assertRaisesRegex(
+            InvestmentArtifactError, "artifact compliance receipt mismatch"
+        ):
             validate_artifact(artifact)
 
     def test_mutation_breaks_hash(self) -> None:
         artifact = create_artifact(
-            "psychology", identity(), {"type": "company", "name": "Test Co"},
-            {"user_answers": {}}, limitations=["User-supplied only"],
+            "psychology",
+            identity(),
+            {"type": "company", "name": "Test Co"},
+            {"user_answers": {}},
+            limitations=["User-supplied only"],
         )
         tampered = copy.deepcopy(artifact)
         tampered["data"]["user_answers"]["fomo"] = True
-        with self.assertRaisesRegex(InvestmentArtifactError, "artifact compliance receipt mismatch"):
+        with self.assertRaisesRegex(
+            InvestmentArtifactError, "artifact compliance receipt mismatch"
+        ):
             validate_artifact(tampered)
 
     def test_different_content_has_different_artifact_id(self) -> None:
         left = create_artifact(
-            "psychology", identity(), {"type": "company", "name": "Test Co"},
-            {"user_answers": {"fomo": False}}, limitations=["Synthetic"],
+            "psychology",
+            identity(),
+            {"type": "company", "name": "Test Co"},
+            {"user_answers": {"fomo": False}},
+            limitations=["Synthetic"],
         )
         right = create_artifact(
-            "psychology", identity(), {"type": "company", "name": "Test Co"},
-            {"user_answers": {"fomo": True}}, limitations=["Synthetic"],
+            "psychology",
+            identity(),
+            {"type": "company", "name": "Test Co"},
+            {"user_answers": {"fomo": True}},
+            limitations=["Synthetic"],
         )
         self.assertNotEqual(left["artifact_id"], right["artifact_id"])
 
     def test_fact_requires_exact_claim(self) -> None:
         sources, parameters, _ = evidence()
         parameters[0]["claim_ids"] = []
-        with self.assertRaisesRegex(InvestmentArtifactError, "exact-value claim required"):
+        with self.assertRaisesRegex(
+            InvestmentArtifactError, "exact-value claim required"
+        ):
             create_artifact(
-                "management", identity(), {"type": "company", "name": "Test Co"},
-                management_data(), sources=sources, parameters=parameters, evidence_claims=[],
+                "management",
+                identity(),
+                {"type": "company", "name": "Test Co"},
+                management_data(),
+                sources=sources,
+                parameters=parameters,
+                evidence_claims=[],
             )
 
     def test_future_source_is_rejected(self) -> None:
@@ -174,64 +249,103 @@ class ContractTests(unittest.TestCase):
         sources[0]["published_date"] = "2026-07-13"
         with self.assertRaisesRegex(InvestmentArtifactError, "future information leak"):
             create_artifact(
-                "management", identity(), {"type": "company", "name": "Test Co"},
-                management_data(), sources=sources, parameters=parameters, evidence_claims=claims,
+                "management",
+                identity(),
+                {"type": "company", "name": "Test Co"},
+                management_data(),
+                sources=sources,
+                parameters=parameters,
+                evidence_claims=claims,
             )
 
     def test_finalize_qualitative_draft(self) -> None:
-        artifact = finalize_draft({
-            "module": "management", "identity": identity(),
-            "scope": {"type": "company", "name": "Test Co"},
-            "data": management_data(), "limitations": ["Synthetic"],
-        })
+        artifact = finalize_draft(
+            {
+                "module": "management",
+                "identity": identity(),
+                "scope": {"type": "company", "name": "Test Co"},
+                "data": management_data(),
+                "limitations": ["Synthetic"],
+            }
+        )
         validate_artifact(artifact)
 
     def test_management_fact_requires_checked_claim(self) -> None:
         data = management_data()
-        data["facts"] = [{
-            "fact_id": "integrity_event_1", "fact_type": "integrity_event",
-            "statement": "The company received a regulatory sanction.",
-            "event_date": "2025-12-01", "claim_ids": [],
-        }]
-        with self.assertRaisesRegex(InvestmentArtifactError, "claim_ids must not be empty"):
+        data["facts"] = [
+            {
+                "fact_id": "integrity_event_1",
+                "fact_type": "integrity_event",
+                "statement": "The company received a regulatory sanction.",
+                "event_date": "2025-12-01",
+                "claim_ids": [],
+            }
+        ]
+        with self.assertRaisesRegex(
+            InvestmentArtifactError, "claim_ids must not be empty"
+        ):
             create_artifact(
-                "management", identity(), {"type": "company", "name": "Test Co"},
-                data, limitations=["Synthetic"],
+                "management",
+                identity(),
+                {"type": "company", "name": "Test Co"},
+                data,
+                limitations=["Synthetic"],
             )
 
     def test_finalize_draft_rejects_quantitative_bypass(self) -> None:
         with self.assertRaisesRegex(InvestmentArtifactError, "restricted"):
-            finalize_draft({
-                "module": "valuation", "identity": identity(),
-                "scope": {"type": "company", "name": "Test Co"}, "data": {},
-            })
+            finalize_draft(
+                {
+                    "module": "valuation",
+                    "identity": identity(),
+                    "scope": {"type": "company", "name": "Test Co"},
+                    "data": {},
+                }
+            )
 
     def test_nan_is_rejected_before_hashing(self) -> None:
         with self.assertRaisesRegex(InvestmentArtifactError, "NaN or infinity"):
             create_artifact(
-                "psychology", identity(), {"type": "company", "name": "Test Co"},
-                {"invalid": float("nan")}, limitations=["Synthetic"],
+                "psychology",
+                identity(),
+                {"type": "company", "name": "Test Co"},
+                {"invalid": float("nan")},
+                limitations=["Synthetic"],
             )
 
     def test_scenario_manifest_hash_is_enforced(self) -> None:
         artifact = create_artifact(
-            "psychology", identity(), {"type": "company", "name": "Test Co"},
-            {"answers": {}}, scenario_set=["low", "base", "high"], limitations=["Synthetic"],
+            "psychology",
+            identity(),
+            {"type": "company", "name": "Test Co"},
+            {"answers": {}},
+            scenario_set=["low", "base", "high"],
+            limitations=["Synthetic"],
         )
-        artifact["scenario_manifest"]["scenarios"][0]["definition"] = "Tampered definition"
-        with self.assertRaisesRegex(InvestmentArtifactError, "scenario_manifest hash mismatch"):
+        artifact["scenario_manifest"]["scenarios"][0]["definition"] = (
+            "Tampered definition"
+        )
+        with self.assertRaisesRegex(
+            InvestmentArtifactError, "scenario_manifest hash mismatch"
+        ):
             validate_artifact(artifact)
 
     def test_legacy_artifact_schema_1_golden_versions_remain_valid(self) -> None:
         for suite_version in ("4.0.0", "4.1.0", "4.2.0"):
             with self.subTest(suite_version=suite_version):
                 body = {
-                    "artifact_schema_version": "1.0", "invest_suite_version": suite_version,
-                    "module": "psychology", "identity": identity(),
+                    "artifact_schema_version": "1.0",
+                    "invest_suite_version": suite_version,
+                    "module": "psychology",
+                    "identity": identity(),
                     "scope": {"type": "company", "name": "Test Co"},
-                    "scenario_set": [], "revenue_forecast_ref": None,
-                    "upstream_artifacts": [], "sources": [], "parameters": [],
-                    "evidence_claims": [], "data": {"legacy_fixture": True},
+                    "scenario_set": [],
+                    "revenue_forecast_ref": None,
+                    "upstream_artifacts": [],
+                    "sources": [],
+                    "parameters": [],
+                    "evidence_claims": [],
+                    "data": {"legacy_fixture": True},
                     "limitations": ["Immutable suite-4 compatibility fixture"],
                 }
                 artifact = {**body, "artifact_id": canonical_sha256(body)}
@@ -240,10 +354,17 @@ class ContractTests(unittest.TestCase):
 
     def test_suite_5_0_artifact_schema_2_remains_valid(self) -> None:
         current = create_artifact(
-            "psychology", identity(), {"type": "company", "name": "Test Co"},
-            {"legacy_fixture": True}, limitations=["Immutable suite-5.0 compatibility fixture"],
+            "psychology",
+            identity(),
+            {"type": "company", "name": "Test Co"},
+            {"legacy_fixture": True},
+            limitations=["Immutable suite-5.0 compatibility fixture"],
         )
-        body = {key: value for key, value in current.items() if key not in {"artifact_id", "artifact_sha256"}}
+        body = {
+            key: value
+            for key, value in current.items()
+            if key not in {"artifact_id", "artifact_sha256"}
+        }
         body["invest_suite_version"] = "5.0.0"
         body["artifact_schema_version"] = "2.0"
         body.pop("compliance_receipt")
@@ -253,10 +374,17 @@ class ContractTests(unittest.TestCase):
 
     def test_suite_5_1_artifact_schema_2_remains_valid(self) -> None:
         current = create_artifact(
-            "psychology", identity(), {"type": "company", "name": "Test Co"},
-            {"legacy_fixture": True}, limitations=["Immutable suite-5.1 compatibility fixture"],
+            "psychology",
+            identity(),
+            {"type": "company", "name": "Test Co"},
+            {"legacy_fixture": True},
+            limitations=["Immutable suite-5.1 compatibility fixture"],
         )
-        body = {key: value for key, value in current.items() if key not in {"artifact_id", "artifact_sha256"}}
+        body = {
+            key: value
+            for key, value in current.items()
+            if key not in {"artifact_id", "artifact_sha256"}
+        }
         body["invest_suite_version"] = "5.1.0"
         body["artifact_schema_version"] = "2.0"
         body.pop("compliance_receipt")
@@ -266,10 +394,17 @@ class ContractTests(unittest.TestCase):
 
     def test_suite_5_0_qualitative_schema_2_remains_valid(self) -> None:
         current = create_artifact(
-            "management", identity(), {"type": "company", "name": "Test Co"},
-            management_data(), limitations=["Immutable suite-5.0 qualitative fixture"],
+            "management",
+            identity(),
+            {"type": "company", "name": "Test Co"},
+            management_data(),
+            limitations=["Immutable suite-5.0 qualitative fixture"],
         )
-        body = {key: value for key, value in current.items() if key not in {"artifact_id", "artifact_sha256"}}
+        body = {
+            key: value
+            for key, value in current.items()
+            if key not in {"artifact_id", "artifact_sha256"}
+        }
         body["invest_suite_version"] = "5.0.0"
         body["artifact_schema_version"] = "2.0"
         body.pop("compliance_receipt")

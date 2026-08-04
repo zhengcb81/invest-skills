@@ -16,14 +16,24 @@ import unittest
 from pathlib import Path
 
 
-_REVENUE = None
-_env_dir = os.environ.get("REVENUE_FORECAST_DIR")
-if _env_dir:
-    candidate = Path(_env_dir).expanduser().resolve()
-    if (candidate / "scripts").is_dir():
-        _REVENUE = candidate
-if _REVENUE is None:
-    _REVENUE = Path(__file__).resolve().parents[2] / "revenue-forecast"
+def _revenue_root() -> Path:
+    env_dir = os.environ.get("REVENUE_FORECAST_DIR")
+    if env_dir:
+        candidate = Path(env_dir).expanduser().resolve()
+        if (candidate / "scripts").is_dir():
+            return candidate
+    here = Path(__file__).resolve().parents[1]
+    for candidate in (
+        here / "revenue-forecast",
+        here.parent / "revenue-forecast",
+        here.parent.parent / "revenue-forecast",
+    ):
+        if (candidate / "scripts").is_dir():
+            return candidate
+    raise ImportError("revenue-forecast not found; set REVENUE_FORECAST_DIR")
+
+
+_REVENUE = _revenue_root()
 sys.path.insert(0, str(_REVENUE / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 

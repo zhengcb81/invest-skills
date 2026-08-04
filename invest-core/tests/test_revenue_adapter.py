@@ -29,10 +29,18 @@ class RevenueAdapterTests(unittest.TestCase):
     def test_company_adapter_copies_validated_paths(self) -> None:
         result = forecast_result()
         adapter = adapt_revenue(result)
-        self.assertEqual(adapter["annual_revenue"]["base"], result["consolidated_forecast"]["base"]["annual_revenue"])
-        self.assertEqual(adapter["revenue_forecast_ref"]["result_sha256"], result["result_sha256"])
+        self.assertEqual(
+            adapter["annual_revenue"]["base"],
+            result["consolidated_forecast"]["base"]["annual_revenue"],
+        )
+        self.assertEqual(
+            adapter["revenue_forecast_ref"]["result_sha256"], result["result_sha256"]
+        )
         self.assertEqual(adapter["adapter_schema_version"], "1.1")
-        self.assertEqual(adapter["revenue_forecast_ref"]["growth_driver_analysis_status"], "validated")
+        self.assertEqual(
+            adapter["revenue_forecast_ref"]["growth_driver_analysis_status"],
+            "validated",
+        )
 
     def test_growth_driver_tree_is_hashed_and_compacted(self) -> None:
         result = load_revenue_fixture("growth")
@@ -43,7 +51,10 @@ class RevenueAdapterTests(unittest.TestCase):
         self.assertEqual(ref["revenue_compliance_status"], "current_validated")
         self.assertIsNotNone(ref["workflow_compliance_receipt_sha256"])
         self.assertEqual(ref["growth_driver_analysis_status"], "validated")
-        self.assertEqual(ref["growth_driver_analysis_sha256"], canonical_sha256(result["growth_driver_analysis"]))
+        self.assertEqual(
+            ref["growth_driver_analysis_sha256"],
+            canonical_sha256(result["growth_driver_analysis"]),
+        )
         self.assertEqual(ref["growth_driver_summary_sha256"], canonical_sha256(summary))
         self.assertEqual([item["rank"] for item in summary["drivers"]], [1, 2])
         self.assertNotIn("evidence_nodes", summary["drivers"][0])
@@ -53,16 +64,37 @@ class RevenueAdapterTests(unittest.TestCase):
         core, report, _ = revenue_runtime()
         for source in result["sources"]:
             content_hashes = {
-                claim["content_sha256"] for claim in result["evidence_claims"]
+                claim["content_sha256"]
+                for claim in result["evidence_claims"]
                 if claim["source_id"] == source["source_id"]
             }
             self.assertEqual(len(content_hashes), 1)
             capture = {
-                "capture_schema_version": "1.0", "capture_method": "local_document",
-                "tool_name": "frozen-fixture-loader", "tool_call_id": f"fixture-{source['source_id']}",
-                "captured_date": source["accessed_date"], "snapshot_sha256": content_hashes.pop(),
-                "content_treatment": "untrusted_data_only", "prompt_injection_status": "not_detected",
+                "capture_schema_version": "1.0",
+                "capture_method": "local_document",
+                "tool_name": "frozen-fixture-loader",
+                "tool_call_id": f"fixture-{source['source_id']}",
+                "captured_date": source["accessed_date"],
+                "snapshot_sha256": content_hashes.pop(),
+                "content_treatment": "untrusted_data_only",
+                "prompt_injection_status": "not_detected",
             }
+            capture["host_receipt"] = {
+                "host_receipt_schema_version": "1.0",
+                "issuer": "fixture-host",
+                "environment": "test",
+                "tool_name": capture["tool_name"],
+                "action": "capture_open",
+                "event_sha256": capture["snapshot_sha256"],
+                "timestamp": source["accessed_date"],
+            }
+            capture["host_receipt"]["receipt_sha256"] = core.canonical_sha256(
+                {
+                    key: value
+                    for key, value in capture["host_receipt"].items()
+                    if key != "receipt_sha256"
+                }
+            )
             capture["receipt_sha256"] = core.canonical_sha256(capture)
             source["capture"] = capture
             for claim in result["evidence_claims"]:
@@ -71,33 +103,53 @@ class RevenueAdapterTests(unittest.TestCase):
         result["schema_version"] = core.FORECAST_SCHEMA_VERSION
         result["engine_version"] = core.ENGINE_VERSION
         result["workflow_compliance_receipt"] = core.build_workflow_compliance_receipt(
-            result["input_sha256"], result["sources"], result["evidence_claims"],
-            result["parameter_trace"], result.get("data_gaps", []),
+            result["input_sha256"],
+            result["sources"],
+            result["evidence_claims"],
+            result["parameter_trace"],
+            result.get("data_gaps", []),
         )
-        # rebuild publication receipt after the capture/source edits above
+        # rebuild publication receipt after the capture/source edits above:
+        # drop the stale receipt and hash, strong-validate the edited content,
+        # then sign with the returned verification context and re-validate.
         from revenue_publication import build_publication_receipt
-        result["publication_receipt"] = build_publication_receipt(result)
-        result["result_sha256"] = core.canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
-        report.validate_forecast_output(result, result.get("_input_document", result))
+
+        result.pop("publication_receipt", None)
+        result.pop("result_sha256", None)
+        context = report.validate_published_forecast(result, result["input_document"])
+        result["publication_receipt"] = build_publication_receipt(result, context)
+        result["result_sha256"] = core.canonical_sha256(
+            {key: value for key, value in result.items() if key != "result_sha256"}
+        )
+        report.validate_published_forecast(result, result["input_document"])
         ref = adapt_revenue(result)["revenue_forecast_ref"]
         self.assertEqual(ref["revenue_compliance_status"], "current_validated")
-        self.assertEqual(ref["workflow_compliance_receipt_sha256"], result["workflow_compliance_receipt"]["receipt_sha256"])
+        self.assertEqual(
+            ref["workflow_compliance_receipt_sha256"],
+            result["workflow_compliance_receipt"]["receipt_sha256"],
+        )
 
     def test_growth_driver_summary_tampering_is_rejected(self) -> None:
         result = load_revenue_fixture("growth")
         ref = adapt_revenue(result)["revenue_forecast_ref"]
         ref["growth_driver_summary"]["drivers"][0]["thesis"] = "Altered thesis"
-        with self.assertRaisesRegex(InvestmentArtifactError, "growth driver summary hash mismatch"):
+        with self.assertRaisesRegex(
+            InvestmentArtifactError, "growth driver summary hash mismatch"
+        ):
             create_artifact(
                 "financials",
                 {
-                    "company_name": result["company_name"], "as_of_date": result["as_of_date"],
-                    "currency": result["currency"], "unit": result["unit"],
-                    "fiscal_year_end": result["fiscal_year_end"], "base_year": result["base_year"],
+                    "company_name": result["company_name"],
+                    "as_of_date": result["as_of_date"],
+                    "currency": result["currency"],
+                    "unit": result["unit"],
+                    "fiscal_year_end": result["fiscal_year_end"],
+                    "base_year": result["base_year"],
                     "forecast_years": result["forecast_years"],
                 },
                 {"type": "company", "name": result["company_name"]},
-                {"annual_financials": {}}, scenario_set=["low", "base", "high"],
+                {"annual_financials": {}},
+                scenario_set=["low", "base", "high"],
                 revenue_forecast_ref=ref,
             )
 
@@ -112,8 +164,11 @@ class RevenueAdapterTests(unittest.TestCase):
         result = load_revenue_fixture("growth")
         ref = adapt_revenue(result)["revenue_forecast_ref"]
         for field in (
-            "revenue_reference_schema_version", "growth_driver_analysis_status",
-            "growth_driver_analysis_sha256", "growth_driver_summary", "growth_driver_summary_sha256",
+            "revenue_reference_schema_version",
+            "growth_driver_analysis_status",
+            "growth_driver_analysis_sha256",
+            "growth_driver_summary",
+            "growth_driver_summary_sha256",
         ):
             ref.pop(field)
         # Dropping growth-driver metadata from a schema 3.5 reference must be
@@ -123,13 +178,17 @@ class RevenueAdapterTests(unittest.TestCase):
             create_artifact(
                 "financials",
                 {
-                    "company_name": result["company_name"], "as_of_date": result["as_of_date"],
-                    "currency": result["currency"], "unit": result["unit"],
-                    "fiscal_year_end": result["fiscal_year_end"], "base_year": result["base_year"],
+                    "company_name": result["company_name"],
+                    "as_of_date": result["as_of_date"],
+                    "currency": result["currency"],
+                    "unit": result["unit"],
+                    "fiscal_year_end": result["fiscal_year_end"],
+                    "base_year": result["base_year"],
                     "forecast_years": result["forecast_years"],
                 },
                 {"type": "company", "name": result["company_name"]},
-                {"annual_financials": {}}, scenario_set=["low", "base", "high"],
+                {"annual_financials": {}},
+                scenario_set=["low", "base", "high"],
                 revenue_forecast_ref=ref,
             )
 
@@ -137,7 +196,10 @@ class RevenueAdapterTests(unittest.TestCase):
         result = forecast_result()
         segment = result["segments"][0]
         adapter = adapt_revenue(result, "segment", segment["name"])
-        self.assertEqual(adapter["annual_revenue"]["low"], segment["scenarios"]["low"]["recognized_revenue"])
+        self.assertEqual(
+            adapter["annual_revenue"]["low"],
+            segment["scenarios"]["low"]["recognized_revenue"],
+        )
 
     def test_segment_adapter_prefers_revenue_owned_effective_path(self) -> None:
         # Verify the adapter prefers effective_revenue over recognized_revenue
@@ -146,21 +208,82 @@ class RevenueAdapterTests(unittest.TestCase):
         result = load_revenue_fixture("effective")
         segment = copy.deepcopy(result["segments"][0])
         segment["scenarios"]["base"]["effective_revenue"] = {
-            year: value + 10 for year, value in segment["scenarios"]["base"]["recognized_revenue"].items()
+            year: value + 10
+            for year, value in segment["scenarios"]["base"][
+                "recognized_revenue"
+            ].items()
         }
         result["segments"][0] = segment
         with patch("invest_contracts.validate_revenue_forecast"):
             adapter = adapt_revenue(result, "segment", segment["name"])
-        self.assertEqual(adapter["annual_revenue"]["base"], segment["scenarios"]["base"]["effective_revenue"])
-        self.assertNotEqual(adapter["annual_revenue"]["base"], segment["scenarios"]["base"]["recognized_revenue"])
+        self.assertEqual(
+            adapter["annual_revenue"]["base"],
+            segment["scenarios"]["base"]["effective_revenue"],
+        )
+        self.assertNotEqual(
+            adapter["annual_revenue"]["base"],
+            segment["scenarios"]["base"]["recognized_revenue"],
+        )
 
     def test_tampered_forecast_is_rejected(self) -> None:
         result = forecast_result()
         tampered = copy.deepcopy(result)
         year = str(result["forecast_years"][0])
         tampered["consolidated_forecast"]["base"]["annual_revenue"][year] += 1
-        with self.assertRaisesRegex(InvestmentArtifactError, "invalid revenue forecast"):
+        with self.assertRaisesRegex(
+            InvestmentArtifactError, "invalid revenue forecast"
+        ):
             adapt_revenue(tampered)
+
+    def test_forged_sensitivity_artifact_is_rejected_cross_repo(self) -> None:
+        # Phase 6 A3 conformance: a revenue artifact whose sensitivity terminals
+        # were forged and every hash (receipt, result, verification context)
+        # recomputed must be rejected by the invest-core formal boundary.  This
+        # closes the F-02 exploit end-to-end at the invest consumer.
+        core, report, _ = revenue_runtime()
+        base = load_revenue_fixture("growth")
+        input_doc = copy.deepcopy(base["input_document"])
+        parameter_id = input_doc["segments"][0]["scenarios"]["base"][
+            "driver_parameter_ids"
+        ]["revenue"][1]
+        input_doc["sensitivity_tests"] = [
+            {
+                "name": "Core terminal revenue",
+                "parameter_id": parameter_id,
+                "shock_type": "percent",
+                "shock_value": 0.1,
+            }
+        ]
+        result = core.run_forecast(input_doc)
+        forged = copy.deepcopy(result)
+        sensitivity = forged["sensitivities"][0]
+        baseline = float(sensitivity["baseline_terminal_revenue"])
+        sensitivity["down_terminal_revenue"] = 1.0
+        sensitivity["up_terminal_revenue"] = baseline * 100.0
+        impact = max(abs(1.0 - baseline), abs(baseline * 100.0 - baseline))
+        sensitivity["max_absolute_terminal_impact"] = impact
+        sensitivity["max_relative_terminal_impact"] = impact / baseline
+        from revenue_publication import (
+            VerificationContext,
+            build_publication_receipt,
+            expected_publication_gates,
+        )
+
+        forged["publication_receipt"] = build_publication_receipt(
+            forged,
+            VerificationContext(
+                forged["input_sha256"],
+                expected_publication_gates(forged),
+                core.ENGINE_VERSION,
+            ),
+        )
+        forged["result_sha256"] = core.canonical_sha256(
+            {key: value for key, value in forged.items() if key != "result_sha256"}
+        )
+        with self.assertRaisesRegex(
+            InvestmentArtifactError, "invalid revenue forecast"
+        ):
+            adapt_revenue(forged)
 
     def test_management_target_summary_is_hashed_and_transferred(self) -> None:
         result = load_revenue_fixture("target")
@@ -168,20 +291,28 @@ class RevenueAdapterTests(unittest.TestCase):
         ref = adapter["revenue_forecast_ref"]
         self.assertEqual(ref["management_target_coverage_status"], "validated")
         self.assertEqual(ref["management_target_counts"]["targets_total"], 1)
-        self.assertTrue(ref["management_target_summary"][0]["scenario_comparison"]["high"]["meets_target"])
+        self.assertTrue(
+            ref["management_target_summary"][0]["scenario_comparison"]["high"][
+                "meets_target"
+            ]
+        )
         tampered = copy.deepcopy(ref)
         tampered["management_target_summary"][0]["statement"] = "Altered target"
         with self.assertRaisesRegex(InvestmentArtifactError, "summary hash mismatch"):
             create_artifact(
                 "financials",
                 {
-                    "company_name": result["company_name"], "as_of_date": result["as_of_date"],
-                    "currency": result["currency"], "unit": result["unit"],
-                    "fiscal_year_end": result["fiscal_year_end"], "base_year": result["base_year"],
+                    "company_name": result["company_name"],
+                    "as_of_date": result["as_of_date"],
+                    "currency": result["currency"],
+                    "unit": result["unit"],
+                    "fiscal_year_end": result["fiscal_year_end"],
+                    "base_year": result["base_year"],
                     "forecast_years": result["forecast_years"],
                 },
                 {"type": "company", "name": result["company_name"]},
-                {"annual_financials": {}}, scenario_set=["low", "base", "high"],
+                {"annual_financials": {}},
+                scenario_set=["low", "base", "high"],
                 revenue_forecast_ref=tampered,
             )
 

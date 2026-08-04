@@ -10,8 +10,11 @@ sys.path.insert(0, str(SUITE / "invest-core" / "scripts"))
 sys.path.insert(0, str(SUITE / "tests_support"))
 
 from invest_contracts import (  # noqa: E402
-    InvestmentArtifactError, canonical_sha256, finalize_draft,
-    revenue_reference, text_sha256,
+    InvestmentArtifactError,
+    canonical_sha256,
+    finalize_draft,
+    revenue_reference,
+    text_sha256,
 )
 from revenue_fixtures import load_revenue_fixture  # noqa: E402
 
@@ -22,65 +25,117 @@ def forecast() -> dict:
 
 def draft() -> dict:
     result = forecast()
-    excerpt = "Retention remained high because customers integrated the workflow deeply."
+    excerpt = (
+        "Retention remained high because customers integrated the workflow deeply."
+    )
     source = {
-        "source_id": "filing", "source_type": "exchange_filing", "title": "Annual filing",
-        "publisher": "Exchange", "url": "https://www.sec.gov/Archives/moat.htm",
-        "published_date": "2026-03-01", "accessed_date": "2026-07-01", "page_or_section": "Customers",
+        "source_id": "filing",
+        "source_type": "exchange_filing",
+        "title": "Annual filing",
+        "publisher": "Exchange",
+        "url": "https://www.sec.gov/Archives/moat.htm",
+        "published_date": "2026-03-01",
+        "accessed_date": "2026-07-01",
+        "page_or_section": "Customers",
     }
     capture = {
-        "capture_schema_version": "1.0", "capture_method": "browser_open",
-        "tool_name": "test-browser", "tool_call_id": "fixture-moat-filing",
+        "capture_schema_version": "1.0",
+        "capture_method": "browser_open",
+        "tool_name": "test-browser",
+        "tool_call_id": "fixture-moat-filing",
         "captured_date": source["accessed_date"],
         "snapshot_sha256": canonical_sha256({"source": "filing"}),
-        "content_treatment": "untrusted_data_only", "prompt_injection_status": "not_detected",
+        "content_treatment": "untrusted_data_only",
+        "prompt_injection_status": "not_detected",
     }
+    capture["host_receipt"] = {
+        "host_receipt_schema_version": "1.0",
+        "issuer": "fixture-host",
+        "environment": "test",
+        "tool_name": capture["tool_name"],
+        "action": "capture_open",
+        "event_sha256": capture["snapshot_sha256"],
+        "timestamp": capture["captured_date"],
+    }
+    capture["host_receipt"]["receipt_sha256"] = canonical_sha256(
+        {k: v for k, v in capture["host_receipt"].items() if k != "receipt_sha256"}
+    )
     capture["receipt_sha256"] = canonical_sha256(capture)
     source["capture"] = capture
     return {
         "module": "moat",
         "identity": {
-            "company_name": result["company_name"], "as_of_date": result["as_of_date"],
-            "currency": result["currency"], "unit": result["unit"],
-            "fiscal_year_end": result["fiscal_year_end"], "base_year": result["base_year"],
+            "company_name": result["company_name"],
+            "as_of_date": result["as_of_date"],
+            "currency": result["currency"],
+            "unit": result["unit"],
+            "fiscal_year_end": result["fiscal_year_end"],
+            "base_year": result["base_year"],
             "forecast_years": result["forecast_years"],
         },
         "scope": {"type": "company", "name": result["company_name"]},
-        "scenario_set": [], "revenue_forecast_ref": revenue_reference(result),
+        "scenario_set": [],
+        "revenue_forecast_ref": revenue_reference(result),
         "sources": [source],
-        "evidence_claims": [{
-            "claim_id": "claim_retention", "source_id": "filing",
-            "target_type": "qualitative_assertion", "target_id": "retention_fact",
-            "support_type": "qualitative_support", "locator": "Customers, paragraph 4",
-            "excerpt": excerpt, "excerpt_sha256": text_sha256(excerpt),
-            "content_sha256": canonical_sha256({"source": "filing"}),
-            "verified_by": "unit-test", "verified_date": "2026-07-01",
-            "verification_status": "opened_and_checked",
-            "capture_receipt_sha256": capture["receipt_sha256"],
-        }],
+        "evidence_claims": [
+            {
+                "claim_id": "claim_retention",
+                "source_id": "filing",
+                "target_type": "qualitative_assertion",
+                "target_id": "retention_fact",
+                "support_type": "qualitative_support",
+                "locator": "Customers, paragraph 4",
+                "excerpt": excerpt,
+                "excerpt_sha256": text_sha256(excerpt),
+                "content_sha256": canonical_sha256({"source": "filing"}),
+                "verified_by": "unit-test",
+                "verified_date": "2026-07-01",
+                "verification_status": "opened_and_checked",
+                "capture_receipt_sha256": capture["receipt_sha256"],
+            }
+        ],
         "data": {
             "qualitative_schema_version": "2.1",
-            "facts": [{
-                "fact_id": "retention_fact", "fact_type": "customer_behavior",
-                "statement": "Customers showed high retention after workflow integration.",
-                "event_date": "2026-03-01", "claim_ids": ["claim_retention"],
-            }],
+            "facts": [
+                {
+                    "fact_id": "retention_fact",
+                    "fact_type": "customer_behavior",
+                    "statement": "Customers showed high retention after workflow integration.",
+                    "event_date": "2026-03-01",
+                    "claim_ids": ["claim_retention"],
+                }
+            ],
             "driver_registry": {
-                "growth_driver_summary_sha256": revenue_reference(result)["growth_driver_summary_sha256"],
-                "growth_driver_ids": ["fixture_driver_Segment_A"], "financial_line_ids": [],
+                "growth_driver_summary_sha256": revenue_reference(result)[
+                    "growth_driver_summary_sha256"
+                ],
+                "growth_driver_ids": ["fixture_driver_Segment_A"],
+                "financial_line_ids": [],
             },
-            "mechanisms": [{
-                "mechanism_id": "switching_cost", "mechanism_type": "switching_cost",
-                "business_scope": "Core product", "unit_of_competition": "Customer workflow",
-                "causal_chain": "Integration increases migration effort and reduces churn.",
-                "customer_consequence": "Replacement requires retraining and data migration.",
-                "status": "observed", "fact_ids": ["retention_fact"], "contrary_fact_ids": [],
-                "growth_driver_ids": ["fixture_driver_Segment_A"], "financial_line_ids": [],
-                "durability_assumption": {"horizon": "Three years", "rationale": "Workflow depth changes gradually"},
-                "erosion_events": ["Open standard lowers migration cost"],
-                "leading_indicators": ["Cohort retention"], "falsifiers": ["Retention falls below peer median"],
-            }],
-            "disconfirming_fact_ids": [], "data_gaps": ["No customer-level migration-cost survey"],
+            "mechanisms": [
+                {
+                    "mechanism_id": "switching_cost",
+                    "mechanism_type": "switching_cost",
+                    "business_scope": "Core product",
+                    "unit_of_competition": "Customer workflow",
+                    "causal_chain": "Integration increases migration effort and reduces churn.",
+                    "customer_consequence": "Replacement requires retraining and data migration.",
+                    "status": "observed",
+                    "fact_ids": ["retention_fact"],
+                    "contrary_fact_ids": [],
+                    "growth_driver_ids": ["fixture_driver_Segment_A"],
+                    "financial_line_ids": [],
+                    "durability_assumption": {
+                        "horizon": "Three years",
+                        "rationale": "Workflow depth changes gradually",
+                    },
+                    "erosion_events": ["Open standard lowers migration cost"],
+                    "leading_indicators": ["Cohort retention"],
+                    "falsifiers": ["Retention falls below peer median"],
+                }
+            ],
+            "disconfirming_fact_ids": [],
+            "data_gaps": ["No customer-level migration-cost survey"],
         },
         "limitations": ["Synthetic fixture"],
     }
@@ -94,19 +149,25 @@ class MoatContractTests(unittest.TestCase):
     def test_unregistered_driver_mapping_is_rejected(self) -> None:
         value = draft()
         value["data"]["mechanisms"][0]["growth_driver_ids"] = ["invented_driver"]
-        with self.assertRaisesRegex(InvestmentArtifactError, "unknown moat growth driver"):
+        with self.assertRaisesRegex(
+            InvestmentArtifactError, "unknown moat growth driver"
+        ):
             finalize_draft(value)
 
     def test_driver_registry_cannot_invent_growth_drivers(self) -> None:
         value = draft()
         value["data"]["driver_registry"]["growth_driver_ids"] = ["invented_driver"]
-        with self.assertRaisesRegex(InvestmentArtifactError, "registry contains unknown"):
+        with self.assertRaisesRegex(
+            InvestmentArtifactError, "registry contains unknown"
+        ):
             finalize_draft(value)
 
     def test_falsifier_is_mandatory(self) -> None:
         value = draft()
         value["data"]["mechanisms"][0]["falsifiers"] = []
-        with self.assertRaisesRegex(InvestmentArtifactError, "falsifiers must not be empty"):
+        with self.assertRaisesRegex(
+            InvestmentArtifactError, "falsifiers must not be empty"
+        ):
             finalize_draft(value)
 
 
