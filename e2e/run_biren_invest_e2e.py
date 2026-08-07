@@ -102,6 +102,10 @@ def collect_step_2_manifest_contract(manifest: dict, forecast: dict) -> None:
 def run_orchestrator(manifest_path: Path, forecast_path: Path, out_dir: Path) -> None:
     env = dict(os.environ)
     env.setdefault("REVENUE_FORECAST_DIR", str(REVENUE_FORECAST))
+    print(f"[e2e-diag] REVENUE_FORECAST_DIR={env.get('REVENUE_FORECAST_DIR')}", flush=True)
+    print(f"[e2e-diag] REVENUE_FORECAST={REVENUE_FORECAST} exists={REVENUE_FORECAST.is_dir()}", flush=True)
+    print(f"[e2e-diag] INVEST_FRAMEWORK={INVEST_FRAMEWORK} exists={INVEST_FRAMEWORK.is_dir()}", flush=True)
+    print(f"[e2e-diag] cwd will be={INVEST_FRAMEWORK}", flush=True)
     proc = subprocess.run(
         [sys.executable, str(INVEST_FRAMEWORK / "scripts" / "company_orchestrator.py"),
          str(manifest_path), str(forecast_path), "--output-dir", str(out_dir)],
