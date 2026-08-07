@@ -3,7 +3,7 @@
 # Installed via: git config core.hooksPath .githooks
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-export REVENUE_FORECAST_DIR="${REVENUE_FORECAST_DIR:-$ROOT/../revenue-forecast}"
+export REVENUE_FORECAST_DIR="${REVENUE_FORECAST_DIR:-$(cd "$ROOT/.." && pwd)/revenue-forecast}"
 
 echo "[pre-commit] running invest-suite tests..."
 python -m pytest \

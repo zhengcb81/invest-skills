@@ -26,12 +26,10 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parent  # invest-skills repo root
-INVEST_FRAMEWORK = REPO / "invest-framework"
-# revenue-forecast is a sibling repo in the Projects layout; overridable
-# via REVENUE_FORECAST_DIR (the invest-skills fixture convention).
-REVENUE_FORECAST = Path(os.environ.get("REVENUE_FORECAST_DIR") or REPO.parent / "revenue-forecast")
-DEFAULT_FORECAST = HERE / "fixtures" / "biren_forecast.json"
+BIREN = HERE.parent  # biren-forecast
+INVEST_FRAMEWORK = Path("C:/Users/郑曾波/Projects/invest-skills/invest-framework")
+REVENUE_FORECAST = Path("C:/Users/郑曾波/Projects/revenue-forecast")
+DEFAULT_FORECAST = HERE / 'fixtures' / 'biren_forecast.json'
 DEFAULT_MANIFEST = HERE / "biren_manifest.json"
 EXPECTED_DIR = HERE / "expected"
 RUNS_DIR = HERE / ".runs"
@@ -198,7 +196,6 @@ def main() -> int:
 
     forecast = json.loads(forecast_path.read_text(encoding="utf-8"))
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    file_sha = sha256_of(forecast_path)
     # Golden is keyed on the ENGINE's canonical input hash (semantic): cosmetic
     # reformatting of the file must not invalidate the golden, while any real
     # content change produces a new key and an explicit "input changed" failure.
