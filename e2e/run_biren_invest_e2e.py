@@ -26,9 +26,9 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-BIREN = HERE.parent  # biren-forecast
-INVEST_FRAMEWORK = Path("C:/Users/郑曾波/Projects/invest-skills/invest-framework")
-REVENUE_FORECAST = Path("C:/Users/郑曾波/Projects/revenue-forecast")
+REPO = HERE.parent  # invest-skills repo root
+INVEST_FRAMEWORK = REPO / "invest-framework"
+REVENUE_FORECAST = Path(os.environ.get("REVENUE_FORECAST_DIR") or str(REPO.parent / "revenue-forecast"))
 DEFAULT_FORECAST = HERE / 'fixtures' / 'biren_forecast.json'
 DEFAULT_MANIFEST = HERE / "biren_manifest.json"
 EXPECTED_DIR = HERE / "expected"
