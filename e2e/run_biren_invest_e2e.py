@@ -39,7 +39,11 @@ RUNS_DIR = HERE / ".runs"
 
 
 def sha256_of(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    # CRLF (Windows) vs LF (Linux) produce different bytes for identical text
+    # content; normalize so the golden hashes are byte-stable across OSes.
+    # (The skill's own receipt formal_report_sha256 is already LF-normalized
+    # via read_text() universal newlines, so this matches it on both OSes.)
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
 def _report(msg: str) -> None:
