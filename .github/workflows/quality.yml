@@ -18,3 +18,7 @@ jobs:
         run: git clone --depth 1 https://github.com/zhengcb81/revenue-forecast.git ../revenue-forecast
       - name: Run release gate
         run: python tools/verify_suite.py --revenue-dir ../revenue-forecast --skip-install-check
+      - name: Run Biren invest E2E
+        env:
+          REVENUE_FORECAST_DIR: ../revenue-forecast
+        run: python e2e/run_biren_invest_e2e.py

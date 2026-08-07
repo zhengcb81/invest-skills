@@ -1,0 +1,652 @@
+{
+  "manifest_version": "2.0",
+  "identity": {
+    "company_name": "Shanghai Biren Technology Co., Ltd. (上海壁仞科技股份有限公司)",
+    "as_of_date": "2026-08-04",
+    "currency": "RMB",
+    "unit": "thousand",
+    "fiscal_year_end": "12-31",
+    "base_year": 2025,
+    "forecast_years": [
+      2026,
+      2027,
+      2028,
+      2029,
+      2030
+    ]
+  },
+  "scenario_policy": {
+    "scenario_set": [
+      "low",
+      "base",
+      "high"
+    ],
+    "source": "biren_revenue_forecast_2026-08-04",
+    "definitions": {
+      "low": "Downside: foundry constraints / margin pressure",
+      "base": "Central BR20X ramp",
+      "high": "Upside: strong adoption / PS premium"
+    }
+  },
+  "required_constraint_ids": [],
+  "segments": [
+    {
+      "name": "Intelligent Computing Solutions",
+      "financial_model": {
+        "financial_model_schema_version": "2.0",
+        "scope": {
+          "type": "segment",
+          "name": "Intelligent Computing Solutions"
+        },
+        "model_family": "operating_company",
+        "parameters": [
+          {
+            "parameter_id": "gm_low_2026",
+            "kind": "analyst_assumption",
+            "value": 0.5,
+            "unit": "ratio",
+            "period": "FY2026",
+            "definition": "gm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "low",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "gm_low_2027",
+            "kind": "analyst_assumption",
+            "value": 0.5,
+            "unit": "ratio",
+            "period": "FY2027",
+            "definition": "gm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "low",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "gm_low_2028",
+            "kind": "analyst_assumption",
+            "value": 0.5,
+            "unit": "ratio",
+            "period": "FY2028",
+            "definition": "gm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "low",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "gm_low_2029",
+            "kind": "analyst_assumption",
+            "value": 0.5,
+            "unit": "ratio",
+            "period": "FY2029",
+            "definition": "gm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "low",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "gm_low_2030",
+            "kind": "analyst_assumption",
+            "value": 0.5,
+            "unit": "ratio",
+            "period": "FY2030",
+            "definition": "gm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "low",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "gm_base_2026",
+            "kind": "analyst_assumption",
+            "value": 0.538,
+            "unit": "ratio",
+            "period": "FY2026",
+            "definition": "gm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "base",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "gm_base_2027",
+            "kind": "analyst_assumption",
+            "value": 0.538,
+            "unit": "ratio",
+            "period": "FY2027",
+            "definition": "gm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "base",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "gm_base_2028",
+            "kind": "analyst_assumption",
+            "value": 0.538,
+            "unit": "ratio",
+            "period": "FY2028",
+            "definition": "gm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "base",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "gm_base_2029",
+            "kind": "analyst_assumption",
+            "value": 0.538,
+            "unit": "ratio",
+            "period": "FY2029",
+            "definition": "gm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "base",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "gm_base_2030",
+            "kind": "analyst_assumption",
+            "value": 0.538,
+            "unit": "ratio",
+            "period": "FY2030",
+            "definition": "gm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "base",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "gm_high_2026",
+            "kind": "analyst_assumption",
+            "value": 0.58,
+            "unit": "ratio",
+            "period": "FY2026",
+            "definition": "gm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "high",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "gm_high_2027",
+            "kind": "analyst_assumption",
+            "value": 0.58,
+            "unit": "ratio",
+            "period": "FY2027",
+            "definition": "gm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "high",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "gm_high_2028",
+            "kind": "analyst_assumption",
+            "value": 0.58,
+            "unit": "ratio",
+            "period": "FY2028",
+            "definition": "gm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "high",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "gm_high_2029",
+            "kind": "analyst_assumption",
+            "value": 0.58,
+            "unit": "ratio",
+            "period": "FY2029",
+            "definition": "gm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "high",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "gm_high_2030",
+            "kind": "analyst_assumption",
+            "value": 0.58,
+            "unit": "ratio",
+            "period": "FY2030",
+            "definition": "gm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "high",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "nm_low_2026",
+            "kind": "analyst_assumption",
+            "value": -0.95,
+            "unit": "ratio",
+            "period": "FY2026",
+            "definition": "nm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "low",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "nm_low_2027",
+            "kind": "analyst_assumption",
+            "value": -0.95,
+            "unit": "ratio",
+            "period": "FY2027",
+            "definition": "nm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "low",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "nm_low_2028",
+            "kind": "analyst_assumption",
+            "value": -0.95,
+            "unit": "ratio",
+            "period": "FY2028",
+            "definition": "nm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "low",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "nm_low_2029",
+            "kind": "analyst_assumption",
+            "value": -0.95,
+            "unit": "ratio",
+            "period": "FY2029",
+            "definition": "nm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "low",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "nm_low_2030",
+            "kind": "analyst_assumption",
+            "value": -0.95,
+            "unit": "ratio",
+            "period": "FY2030",
+            "definition": "nm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "low",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "nm_base_2026",
+            "kind": "analyst_assumption",
+            "value": -0.845,
+            "unit": "ratio",
+            "period": "FY2026",
+            "definition": "nm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "base",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "nm_base_2027",
+            "kind": "analyst_assumption",
+            "value": -0.845,
+            "unit": "ratio",
+            "period": "FY2027",
+            "definition": "nm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "base",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "nm_base_2028",
+            "kind": "analyst_assumption",
+            "value": -0.845,
+            "unit": "ratio",
+            "period": "FY2028",
+            "definition": "nm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "base",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "nm_base_2029",
+            "kind": "analyst_assumption",
+            "value": -0.845,
+            "unit": "ratio",
+            "period": "FY2029",
+            "definition": "nm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "base",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "nm_base_2030",
+            "kind": "analyst_assumption",
+            "value": -0.845,
+            "unit": "ratio",
+            "period": "FY2030",
+            "definition": "nm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "base",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "nm_high_2026",
+            "kind": "analyst_assumption",
+            "value": -0.65,
+            "unit": "ratio",
+            "period": "FY2026",
+            "definition": "nm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "high",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "nm_high_2027",
+            "kind": "analyst_assumption",
+            "value": -0.65,
+            "unit": "ratio",
+            "period": "FY2027",
+            "definition": "nm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "high",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "nm_high_2028",
+            "kind": "analyst_assumption",
+            "value": -0.65,
+            "unit": "ratio",
+            "period": "FY2028",
+            "definition": "nm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "high",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "nm_high_2029",
+            "kind": "analyst_assumption",
+            "value": -0.65,
+            "unit": "ratio",
+            "period": "FY2029",
+            "definition": "nm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "high",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          },
+          {
+            "parameter_id": "nm_high_2030",
+            "kind": "analyst_assumption",
+            "value": -0.65,
+            "unit": "ratio",
+            "period": "FY2030",
+            "definition": "nm ratio",
+            "dimension": "ratio",
+            "time_basis": "annual",
+            "scenario": "high",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: FY2025 gross margin 53.8% / adjusted net margin ~-84.5% (FY2025 AR); margins normalize with scale."
+          }
+        ],
+        "lines": [
+          {
+            "line_id": "gross_profit",
+            "formula": "x0*x1",
+            "input_refs": [
+              "revenue",
+              "parameter:gm_{scenario}_{year}"
+            ],
+            "input_dimensions": [
+              "revenue",
+              "ratio"
+            ],
+            "output_dimension": "profit",
+            "time_basis": "annual",
+            "metric_role": "gross_profit",
+            "dimension_rule": "monetary_times_rate"
+          },
+          {
+            "line_id": "net_income",
+            "formula": "x0*x1",
+            "input_refs": [
+              "revenue",
+              "parameter:nm_{scenario}_{year}"
+            ],
+            "input_dimensions": [
+              "revenue",
+              "ratio"
+            ],
+            "output_dimension": "profit",
+            "time_basis": "annual",
+            "metric_role": "net_income",
+            "dimension_rule": "monetary_times_rate"
+          }
+        ],
+        "required_outputs": [
+          "net_income"
+        ],
+        "sources": [],
+        "evidence_claims": [],
+        "limitations": [
+          "E2E fixture: simplified two-line DAG."
+        ]
+      },
+      "valuation_model": {
+        "valuation_model_schema_version": "2.0",
+        "methods": [
+          {
+            "method_id": "ps",
+            "type": "multiple",
+            "multiple_kind": "ps",
+            "metric": "revenue",
+            "metric_period": "FY2030",
+            "value_basis": "equity",
+            "valuation_timing": "current",
+            "multiple_parameter_template": "ps_1_{scenario}"
+          }
+        ],
+        "equity_adjustments": [],
+        "parameters": [
+          {
+            "parameter_id": "ps_1_low",
+            "kind": "analyst_assumption",
+            "value": 2.0,
+            "unit": "multiple",
+            "period": "2026-08-04",
+            "definition": "PS multiple (equity)",
+            "dimension": "multiple",
+            "time_basis": "point_in_time",
+            "scenario": "low",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: pre-profit GPGPU growth premium."
+          },
+          {
+            "parameter_id": "ps_1_base",
+            "kind": "analyst_assumption",
+            "value": 3.5,
+            "unit": "multiple",
+            "period": "2026-08-04",
+            "definition": "PS multiple (equity)",
+            "dimension": "multiple",
+            "time_basis": "point_in_time",
+            "scenario": "base",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: pre-profit GPGPU growth premium."
+          },
+          {
+            "parameter_id": "ps_1_high",
+            "kind": "analyst_assumption",
+            "value": 6.0,
+            "unit": "multiple",
+            "period": "2026-08-04",
+            "definition": "PS multiple (equity)",
+            "dimension": "multiple",
+            "time_basis": "point_in_time",
+            "scenario": "high",
+            "source_ids": [],
+            "claim_ids": [],
+            "rationale": "Biren E2E fixture: pre-profit GPGPU growth premium."
+          }
+        ],
+        "sources": [],
+        "evidence_claims": [],
+        "limitations": [
+          "E2E fixture: PS on FY2030 revenue."
+        ]
+      }
+    }
+  ],
+  "sotp_model": {
+    "sotp_model_schema_version": "2.0",
+    "aggregation_basis": "equity",
+    "segment_selections": {
+      "Intelligent Computing Solutions": {
+        "selection_type": "method",
+        "method_id": "ps",
+        "selected_value_basis": "equity"
+      }
+    },
+    "ownership_parameter_templates": {
+      "Intelligent Computing Solutions": "ownership_1"
+    },
+    "company_bridge": {
+      "stage": "equity_level",
+      "completeness_status": "complete",
+      "rationale": "Single-segment PS already yields equity value",
+      "adjustments": []
+    },
+    "parameters": [
+      {
+        "parameter_id": "ownership_1",
+        "kind": "analyst_assumption",
+        "value": 1.0,
+        "unit": "ratio",
+        "period": "2026-08-04",
+        "definition": "Ownership of Intelligent Computing Solutions",
+        "dimension": "ratio",
+        "time_basis": "point_in_time",
+        "scenario": "shared",
+        "source_ids": [],
+        "claim_ids": [],
+        "rationale": "100% owned entity."
+      }
+    ],
+    "sources": [],
+    "evidence_claims": [],
+    "limitations": [
+      "E2E fixture."
+    ]
+  },
+  "bundle_plan": {
+    "bundle_plan_schema_version": "2.0",
+    "required_modules": [
+      "financials",
+      "valuation",
+      "sotp"
+    ],
+    "optional_modules": [],
+    "required_scoped_artifacts": [
+      {
+        "module": "financials",
+        "scope": {
+          "type": "segment",
+          "name": "Intelligent Computing Solutions"
+        }
+      },
+      {
+        "module": "valuation",
+        "scope": {
+          "type": "segment",
+          "name": "Intelligent Computing Solutions"
+        }
+      },
+      {
+        "module": "sotp",
+        "scope": {
+          "type": "company",
+          "name": "Shanghai Biren Technology Co., Ltd. (上海壁仞科技股份有限公司)"
+        }
+      }
+    ],
+    "optional_scoped_artifacts": [],
+    "limitations": [
+      "E2E fixture: moat/management/distribution/compare not run in this pass."
+    ]
+  },
+  "supplemental_artifacts": []
+}

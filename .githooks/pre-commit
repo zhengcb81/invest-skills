@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# invest-skills pre-commit gate: unit/contract suite + Biren invest E2E.
+# Installed via: git config core.hooksPath .githooks
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export REVENUE_FORECAST_DIR="${REVENUE_FORECAST_DIR:-$ROOT/../revenue-forecast}"
+
+echo "[pre-commit] running invest-suite tests..."
+python -m pytest \
+  "$ROOT/invest-core" "$ROOT/invest-framework" "$ROOT/invest-financials" \
+  "$ROOT/invest-valuation" "$ROOT/invest-sotp" "$ROOT/invest-moat" \
+  "$ROOT/invest-management" "$ROOT/invest-distribution" "$ROOT/invest-compare" \
+  "$ROOT/invest-psychology" -q
+
+echo "[pre-commit] running Biren invest E2E..."
+if [ -d "$REVENUE_FORECAST_DIR" ]; then
+  python "$ROOT/e2e/run_biren_invest_e2e.py"
+else
+  echo "[pre-commit] WARNING: revenue-forecast not found at $REVENUE_FORECAST_DIR; skipping E2E"
+fi

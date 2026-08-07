@@ -13,3 +13,6 @@ dist/
 build/
 *.egg-info/
 verification-manifest.json
+
+# E2E run artifacts (regenerable)
+e2e/.runs/
