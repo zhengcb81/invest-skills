@@ -390,12 +390,862 @@
       }
     }
   },
-  "schema_version": "3.6",
-  "engine_version": "3.10.0",
-  "input_sha256": "bb8e3984c13e32eb49a7d262c63ac9c0737f2a6e260944e31f01a043647e7f4e",
+  "schema_version": "3.7",
+  "engine_version": "4.0.0",
+  "research_coverage": {
+    "dimensions": [
+      {
+        "dimension": "company_foundation",
+        "status": "modeled_driver",
+        "conclusion": "Reported FY2025 revenue RMB 1,034.6M; single economic segment (intelligent computing solutions, ~99.3% of revenue).",
+        "revenue_mechanism": "reported total = segment base revenue (no adjustment)",
+        "parameter_ids": [
+          "reported_total_2025",
+          "ics_base_rev"
+        ],
+        "source_ids": [
+          "biren_ar2025"
+        ]
+      },
+      {
+        "dimension": "growth_curve",
+        "status": "modeled_driver",
+        "conclusion": "Forecast path driven by year-on-year growth of recognized intelligent-computing-solution revenue; direct_growth fallback because the company discloses no unit volumes, capacity, utilization, yield, ASP, or order-stock-flow.",
+        "revenue_mechanism": "revenue[t] = revenue[t-1] x (1 + growth_rate[t])",
+        "parameter_ids": [
+          "ics_base_2026_g",
+          "ics_base_2027_g",
+          "ics_base_2028_g",
+          "ics_base_2029_g",
+          "ics_base_2030_g"
+        ],
+        "source_ids": [
+          "biren_ar2025",
+          "biren_prospectus_2025"
+        ]
+      },
+      {
+        "dimension": "industry_market",
+        "status": "modeled_driver",
+        "conclusion": "China GPU market projected ~RMB 205B (2026) to ~RMB 542B (2030) (~27.6% CAGR); domestic share rising as NVIDIA China share falls (~55% in 2025). Biren was ~0.5% share in 2025. TAM growth supports the modeled growth rates; never used as a standalone driver.",
+        "revenue_mechanism": "addressable-market growth + share trajectory informs segment growth rates",
+        "parameter_ids": [
+          "ics_base_2026_g",
+          "ics_base_2027_g",
+          "ics_base_2028_g",
+          "ics_base_2029_g",
+          "ics_base_2030_g"
+        ],
+        "source_ids": [
+          "biren_ar2025"
+        ],
+        "rationale": "Third-party IDC/industry estimates triangulate demand; company-specific share conversion is the binding constraint."
+      },
+      {
+        "dimension": "competition",
+        "status": "data_gap",
+        "conclusion": "Intense domestic competition (Huawei Ascend #1 domestic ~20% share, Cambricon, Moore Threads, Iluvatar Core, Tianxitianzhi/Mohan) plus falling ASP/mix drives gross-margin compression (100%->76%->53%->54%). Competitive pressure caps the growth rates and is embedded in the decelerating base path, but win-rate/ASP are not separately modeled (no unit economics disclosed).",
+        "revenue_mechanism": "competition limits share capture and ASP -> embedded in growth-rate scenarios",
+        "parameter_ids": [
+          "ics_base_2026_g",
+          "ics_base_2027_g",
+          "ics_base_2028_g",
+          "ics_base_2029_g",
+          "ics_base_2030_g"
+        ],
+        "source_ids": [
+          "biren_ar2025",
+          "biren_prospectus_2025"
+        ],
+        "rationale": "No disclosed unit shipments, ASP, or win-rate; competitive impact can only be embedded qualitatively in the growth-rate paths, not decomposed into modeled parameters."
+      },
+      {
+        "dimension": "capacity",
+        "status": "data_gap",
+        "conclusion": "Biren is fabless; wafer supply depends on third-party foundries (originally TSMC 7nm, cut off after the Oct-2022 Entity List addition; now reliant on SMIC domestic capacity). Commissioned wafer capacity, utilization, and yield are not disclosed, so deliverable volume cannot be modeled directly.",
+        "revenue_mechanism": "foundry capacity + utilization + yield would cap deliverable volume; not disclosed",
+        "parameter_ids": [],
+        "source_ids": [
+          "biren_prospectus_2025"
+        ],
+        "rationale": "Foundry allocation and 7nm capacity are material but opaque; the direct_growth fallback and the foundry/export-control headwind root absorb this gap qualitatively."
+      },
+      {
+        "dimension": "technology",
+        "status": "modeled_driver",
+        "conclusion": "Next-generation BR20X series (FP8/FP4 engines, training+inference) planned for commercial launch in 2026 underpins the 2026-2028 growth acceleration; BIRENSUPA software platform and LightSphere X SuperPod (optical interconnect/dOCS) support cluster deployments.",
+        "revenue_mechanism": "product-launch timing and competitiveness inform near-term growth rates",
+        "parameter_ids": [
+          "ics_base_2026_g",
+          "ics_base_2027_g",
+          "ics_base_2028_g"
+        ],
+        "source_ids": [
+          "biren_ar2025"
+        ]
+      },
+      {
+        "dimension": "policy",
+        "status": "modeled_driver",
+        "conclusion": "U.S. Entity List (added Oct 2022) cut off TSMC advanced-node manufacturing and forced a foundry pivot; ongoing export controls are the dominant binary risk to shipment volume. Modeled as a quantified headwind on the growth path; import-substitution policy in China is a tailwind to demand.",
+        "revenue_mechanism": "export controls cap deliverable volume; substitution policy supports demand -> net embedded in growth scenarios + headwind root",
+        "parameter_ids": [
+          "ics_base_2028_g",
+          "ics_base_2029_g",
+          "ics_base_2030_g"
+        ],
+        "source_ids": [
+          "biren_prospectus_2025"
+        ],
+        "rationale": "Magnitude of foundry constraint is not separately quantified; treated via the headwind root and wide scenario dispersion."
+      },
+      {
+        "dimension": "customers",
+        "status": "modeled_driver",
+        "conclusion": "Customer base is small and concentrated but diversifying: 14 customers (FY2024) and 12 (H1 2025); top-5 concentration fell from 90.3% (2024) to 71.3% (2025), largest customer from 54.5% to 19.1%. Expansion of the customer base supports the modeled growth.",
+        "revenue_mechanism": "customer-count growth and concentration decline inform segment growth rates",
+        "parameter_ids": [
+          "ics_base_2027_g",
+          "ics_base_2028_g",
+          "ics_base_2029_g"
+        ],
+        "source_ids": [
+          "biren_ar2025",
+          "biren_prospectus_2025"
+        ]
+      },
+      {
+        "dimension": "demand",
+        "status": "modeled_driver",
+        "conclusion": "End demand is AI training and inference compute for intelligent computing centers and enterprises, reinforced by China import substitution. ~RMB 821.8M unfilled binding orders plus ~RMB 1,240.7M framework/contract pipeline (prospectus) evidence near-term demand visibility, though conversion to recognized revenue is lumpy and acceptance-based.",
+        "revenue_mechanism": "AI-compute demand -> orders -> acceptance -> recognized revenue (lumpy)",
+        "parameter_ids": [
+          "ics_base_2026_g",
+          "ics_base_2027_g"
+        ],
+        "source_ids": [
+          "biren_prospectus_2025",
+          "biren_ar2025"
+        ]
+      }
+    ],
+    "counts": {
+      "data_gap": 2,
+      "immaterial": 0,
+      "modeled_driver": 7
+    }
+  },
+  "management_target_coverage": {
+    "communications": [
+      {
+        "category": "latest_annual_filing",
+        "status": "checked",
+        "source_ids": [
+          "biren_ar2025"
+        ],
+        "checked_date": "2026-08-04",
+        "conclusion": "FY2025 Annual Report (published 2026-04-22, board-approved 2026-03-30) reviewed. No quantitative forward revenue guidance issued.",
+        "material_revenue_target_ids": []
+      },
+      {
+        "category": "latest_results_release",
+        "status": "checked",
+        "source_ids": [
+          "biren_ar2025"
+        ],
+        "checked_date": "2026-08-04",
+        "conclusion": "FY2025 annual results are contained in the annual report (revenue RMB 1,034.6M, +207.2%; adjusted loss RMB 873.8M). No revenue target provided.",
+        "material_revenue_target_ids": []
+      },
+      {
+        "category": "latest_earnings_call",
+        "status": "not_available",
+        "source_ids": [],
+        "checked_date": "2026-08-04",
+        "conclusion": "No earnings-call transcript found for this newly listed (Jan-2026) Chapter 18C issuer as of the as-of date.",
+        "material_revenue_target_ids": [],
+        "rationale": "Searched HKEXnews and company IR channels; no results-call transcript located.",
+        "search_description": "HKEXnews 06082 announcements + birentech.com IR; no earnings-call transcript as of 2026-08-04."
+      },
+      {
+        "category": "latest_investor_presentation",
+        "status": "checked",
+        "source_ids": [
+          "biren_prospectus_2025"
+        ],
+        "checked_date": "2026-08-04",
+        "conclusion": "The IPO prospectus (2025-12-22) is the latest investor-facing communication; it discloses the order pipeline and BR20X roadmap but no quantitative revenue target.",
+        "material_revenue_target_ids": []
+      },
+      {
+        "category": "latest_strategy_communication",
+        "status": "checked",
+        "source_ids": [
+          "biren_ar2025",
+          "biren_prospectus_2025"
+        ],
+        "checked_date": "2026-08-04",
+        "conclusion": "Chairman's report (AR) and prospectus outline strategy: BR20X 2026 launch, ~60% of IPO proceeds to next-gen GPGPU R&D, capacity expansion. No quantitative revenue target.",
+        "material_revenue_target_ids": []
+      },
+      {
+        "category": "material_announcements_since_last_filing",
+        "status": "not_available",
+        "source_ids": [],
+        "checked_date": "2026-08-04",
+        "conclusion": "No company announcement since the FY2025 annual report (2026-03-30 board approval) disclosing a quantitative revenue target was located. H1 2026 interim results not yet released as of the as-of date.",
+        "material_revenue_target_ids": [],
+        "rationale": "Searched HKEXnews for 06082 announcements after 2026-03-30; none contained a revenue target.",
+        "search_description": "HKEXnews 06082 announcements 2026-03-30 to 2026-08-04; no revenue-target announcement."
+      }
+    ],
+    "targets": [],
+    "counts": {
+      "communications_checked": 4,
+      "targets_total": 0,
+      "targets_modeled": 0,
+      "targets_unmodeled": 0
+    }
+  },
+  "scenario_probabilities": null,
+  "probability_weighted_forecast": null,
+  "growth_driver_analysis": {
+    "status": "modeled",
+    "top_drivers": [
+      {
+        "driver_id": "br20x_ramp",
+        "title": "BR20X next-generation product ramp (2026 launch)",
+        "thesis": "The 2026 commercial launch of BR20X (FP8/FP4 training+inference) drives the 2026-2028 growth acceleration as new compute density/memory/interconnect widens the addressable workload set.",
+        "estimated_base_terminal_increment": 4186059.474157188,
+        "share_of_positive_driver_increment": 0.3636363636363636,
+        "segment_names": [
+          "Intelligent Computing Solutions"
+        ],
+        "causal_chain": [
+          "BR20X launches in 2026",
+          "qualified and accepted by intelligent-computing-center customers",
+          "more eligible workloads (training+inference)",
+          "higher accepted solution revenue"
+        ],
+        "evidence_status": "limited",
+        "leading_indicators": [
+          "BR20X launch and customer qualification milestones",
+          "acceptance reports on BR20X deployments",
+          "R&D and tape-out cadence"
+        ],
+        "falsifiers": [
+          "BR20X launch slips beyond 2026",
+          "foundry capacity prevents volume shipment",
+          "BR20X fails customer acceptance"
+        ],
+        "rank": 1
+      },
+      {
+        "driver_id": "import_substitution_tam",
+        "title": "Import substitution and China GPU market growth",
+        "thesis": "NVIDIA's China share is declining (~55% in 2025) as domestic GPUs displace it; the China GPU market is projected to grow ~RMB 205B->542B (2026-2030), supporting baseline demand for Biren's growth rates.",
+        "estimated_base_terminal_increment": 3453499.06617968,
+        "share_of_positive_driver_increment": 0.3,
+        "segment_names": [
+          "Intelligent Computing Solutions"
+        ],
+        "causal_chain": [
+          "export controls + substitution policy",
+          "domestic procurement shifts to Chinese GPUs",
+          "larger addressable order flow",
+          "higher recognized revenue"
+        ],
+        "evidence_status": "limited",
+        "leading_indicators": [
+          "NVIDIA China share trajectory",
+          "domestic GPU shipment share",
+          "intelligent-computing-center procurement tenders"
+        ],
+        "falsifiers": [
+          "NVIDIA share stabilizes or export rules ease",
+          "domestic share gains accrue entirely to Huawei Ascend/Cambricon"
+        ],
+        "rank": 2
+      },
+      {
+        "driver_id": "customer_expansion",
+        "title": "Customer-base expansion and deconcentration",
+        "thesis": "Top-5 customer concentration fell from 90.3% (2024) to 71.3% (2025) and the largest customer from 54.5% to 19.1%, indicating a broadening customer base that supports durable mid-horizon growth.",
+        "estimated_base_terminal_increment": 2302332.7107864534,
+        "share_of_positive_driver_increment": 0.19999999999999998,
+        "segment_names": [
+          "Intelligent Computing Solutions"
+        ],
+        "causal_chain": [
+          "more customers across industries",
+          "less concentration risk",
+          "more accepted deployments per year",
+          "higher recognized revenue"
+        ],
+        "evidence_status": "limited",
+        "leading_indicators": [
+          "customer count",
+          "top-5 concentration ratio",
+          "new-customer wins"
+        ],
+        "falsifiers": [
+          "concentration rises again",
+          "a major customer is lost and not replaced"
+        ],
+        "rank": 3
+      },
+      {
+        "driver_id": "orderbook_conversion",
+        "title": "Near-term order-book and contract conversion",
+        "thesis": "~RMB 821.8M of binding unfilled orders plus ~RMB 1,240.7M of framework/contract pipeline (prospectus) provide visibility for 2026-2027 recognized revenue, subject to lumpy acceptance timing.",
+        "estimated_base_terminal_increment": 1569772.3028089455,
+        "share_of_positive_driver_increment": 0.13636363636363635,
+        "segment_names": [
+          "Intelligent Computing Solutions"
+        ],
+        "causal_chain": [
+          "binding orders and framework contracts",
+          "delivery and customer acceptance",
+          "point-in-time revenue recognition",
+          "recognized revenue"
+        ],
+        "evidence_status": "limited",
+        "leading_indicators": [
+          "order-book value",
+          "acceptance cadence",
+          "quarterly recognized revenue"
+        ],
+        "falsifiers": [
+          "orders slip or are cancelled",
+          "acceptance timing pushes revenue beyond 2027"
+        ],
+        "rank": 4
+      }
+    ],
+    "headwinds": [
+      {
+        "driver_id": "foundry_export_headwind",
+        "title": "Foundry capacity and export-control headwind on shipment volume",
+        "thesis": "Reliance on third-party (domestic) foundries for 7nm-class wafers and the U.S. Entity List constrain deliverable shipment volume; this offsets part of the gross upside and is embedded in the Base path.",
+        "estimated_base_terminal_increment": -1046514.868539297,
+        "share_of_positive_driver_increment": 0.0,
+        "segment_names": [
+          "Intelligent Computing Solutions"
+        ],
+        "causal_chain": [
+          "Entity List + limited 7nm foundry capacity",
+          "constrained wafer supply",
+          "lower deliverable volume than demand would warrant",
+          "lower recognized revenue"
+        ],
+        "evidence_status": "limited",
+        "leading_indicators": [
+          "wafer allocation/shipments",
+          "BR20X volume deliveries",
+          "export-rule changes"
+        ],
+        "falsifiers": [
+          "domestic 7nm capacity scales freely",
+          "export rules ease"
+        ],
+        "rank": 1
+      }
+    ],
+    "drivers": [
+      {
+        "driver_id": "br20x_ramp",
+        "title": "BR20X next-generation product ramp (2026 launch)",
+        "thesis": "The 2026 commercial launch of BR20X (FP8/FP4 training+inference) drives the 2026-2028 growth acceleration as new compute density/memory/interconnect widens the addressable workload set.",
+        "causal_chain": [
+          "BR20X launches in 2026",
+          "qualified and accepted by intelligent-computing-center customers",
+          "more eligible workloads (training+inference)",
+          "higher accepted solution revenue"
+        ],
+        "parameter_ids": [
+          "ics_base_2026_g",
+          "ics_base_2027_g",
+          "ics_base_2028_g"
+        ],
+        "segment_attribution": [
+          {
+            "segment_name": "Intelligent Computing Solutions",
+            "weight": 0.4
+          }
+        ],
+        "horizon": {
+          "start_year": 2026,
+          "end_year": 2028
+        },
+        "persistence": "multi_year_structural",
+        "persistence_rationale": "A new chip generation drives a multi-year replacement and capacity-expansion cycle across the forecast horizon.",
+        "evidence_nodes": [
+          {
+            "evidence_id": "br20x",
+            "evidence_type": "company_product_roadmap",
+            "inference_distance": "direct",
+            "conclusion": "AR Chairman's report states BR20X is planned for commercial launch in 2026 with FP8/FP4 engines.",
+            "claim_ids": [
+              "claim_gd_br20x"
+            ],
+            "source_ids": [
+              "biren_ar2025"
+            ]
+          },
+          {
+            "evidence_id": "rnd",
+            "evidence_type": "company_investment",
+            "inference_distance": "one_step",
+            "conclusion": "RMB1,476.1M R&D (+78.5% YoY) and ~RMB5,631.4M IPO proceeds fund next-gen products and capacity, supporting the ramp.",
+            "claim_ids": [
+              "claim_gd_rnd"
+            ],
+            "source_ids": [
+              "biren_ar2025"
+            ]
+          }
+        ],
+        "evidence_types": [
+          "company_product_roadmap",
+          "company_investment"
+        ],
+        "evidence_source_ids": [
+          "biren_ar2025"
+        ],
+        "evidence_status": "limited",
+        "leading_indicators": [
+          "BR20X launch and customer qualification milestones",
+          "acceptance reports on BR20X deployments",
+          "R&D and tape-out cadence"
+        ],
+        "falsifiers": [
+          "BR20X launch slips beyond 2026",
+          "foundry capacity prevents volume shipment",
+          "BR20X fails customer acceptance"
+        ],
+        "counterevidence_status": "searched_none_found",
+        "counterevidence_rationale": "Checked AR/prospectus for launch delays; none disclosed. Foundry-capacity risk is registered as a separate headwind.",
+        "terminal_increment_by_segment": [
+          {
+            "segment_name": "Intelligent Computing Solutions",
+            "weight": 0.4,
+            "terminal_incremental_revenue": 4186059.474157188
+          }
+        ],
+        "estimated_base_terminal_increment": 4186059.474157188,
+        "share_of_positive_driver_increment": 0.3636363636363636
+      },
+      {
+        "driver_id": "import_substitution_tam",
+        "title": "Import substitution and China GPU market growth",
+        "thesis": "NVIDIA's China share is declining (~55% in 2025) as domestic GPUs displace it; the China GPU market is projected to grow ~RMB 205B->542B (2026-2030), supporting baseline demand for Biren's growth rates.",
+        "causal_chain": [
+          "export controls + substitution policy",
+          "domestic procurement shifts to Chinese GPUs",
+          "larger addressable order flow",
+          "higher recognized revenue"
+        ],
+        "parameter_ids": [
+          "ics_base_2026_g",
+          "ics_base_2027_g",
+          "ics_base_2028_g",
+          "ics_base_2029_g",
+          "ics_base_2030_g"
+        ],
+        "segment_attribution": [
+          {
+            "segment_name": "Intelligent Computing Solutions",
+            "weight": 0.33
+          }
+        ],
+        "horizon": {
+          "start_year": 2026,
+          "end_year": 2030
+        },
+        "persistence": "multi_year_structural",
+        "persistence_rationale": "Substitution is a structural, policy-backed multi-year shift across the forecast horizon.",
+        "evidence_nodes": [
+          {
+            "evidence_id": "ics_share",
+            "evidence_type": "market_structure",
+            "inference_distance": "one_step",
+            "conclusion": "Biren's revenue scale (~RMB 1.03B in 2025) is small relative to the ~RMB 205B+ market, leaving room for share gains if substitution continues.",
+            "claim_ids": [
+              "claim_gd_ics_share"
+            ],
+            "source_ids": [
+              "biren_ar2025"
+            ]
+          }
+        ],
+        "evidence_types": [
+          "market_structure"
+        ],
+        "evidence_source_ids": [
+          "biren_ar2025"
+        ],
+        "evidence_status": "limited",
+        "leading_indicators": [
+          "NVIDIA China share trajectory",
+          "domestic GPU shipment share",
+          "intelligent-computing-center procurement tenders"
+        ],
+        "falsifiers": [
+          "NVIDIA share stabilizes or export rules ease",
+          "domestic share gains accrue entirely to Huawei Ascend/Cambricon"
+        ],
+        "counterevidence_status": "data_gap",
+        "counterevidence_rationale": "Biren-specific win-rate against Huawei Ascend is not disclosed; share-gain magnitude is uncertain.",
+        "terminal_increment_by_segment": [
+          {
+            "segment_name": "Intelligent Computing Solutions",
+            "weight": 0.33,
+            "terminal_incremental_revenue": 3453499.06617968
+          }
+        ],
+        "estimated_base_terminal_increment": 3453499.06617968,
+        "share_of_positive_driver_increment": 0.3
+      },
+      {
+        "driver_id": "customer_expansion",
+        "title": "Customer-base expansion and deconcentration",
+        "thesis": "Top-5 customer concentration fell from 90.3% (2024) to 71.3% (2025) and the largest customer from 54.5% to 19.1%, indicating a broadening customer base that supports durable mid-horizon growth.",
+        "causal_chain": [
+          "more customers across industries",
+          "less concentration risk",
+          "more accepted deployments per year",
+          "higher recognized revenue"
+        ],
+        "parameter_ids": [
+          "ics_base_2027_g",
+          "ics_base_2028_g",
+          "ics_base_2029_g"
+        ],
+        "segment_attribution": [
+          {
+            "segment_name": "Intelligent Computing Solutions",
+            "weight": 0.22
+          }
+        ],
+        "horizon": {
+          "start_year": 2027,
+          "end_year": 2029
+        },
+        "persistence": "multi_year_structural",
+        "persistence_rationale": "Customer acquisition compounds across the horizon.",
+        "evidence_nodes": [
+          {
+            "evidence_id": "customers",
+            "evidence_type": "customer_demand",
+            "inference_distance": "direct",
+            "conclusion": "AR discloses falling top-5 (71.3%) and largest-customer (19.1%) concentration in FY2025.",
+            "claim_ids": [
+              "claim_gd_customers"
+            ],
+            "source_ids": [
+              "biren_ar2025"
+            ]
+          }
+        ],
+        "evidence_types": [
+          "customer_demand"
+        ],
+        "evidence_source_ids": [
+          "biren_ar2025"
+        ],
+        "evidence_status": "limited",
+        "leading_indicators": [
+          "customer count",
+          "top-5 concentration ratio",
+          "new-customer wins"
+        ],
+        "falsifiers": [
+          "concentration rises again",
+          "a major customer is lost and not replaced"
+        ],
+        "counterevidence_status": "searched_none_found",
+        "counterevidence_rationale": "Checked AR for customer-loss disclosures; concentration is improving.",
+        "terminal_increment_by_segment": [
+          {
+            "segment_name": "Intelligent Computing Solutions",
+            "weight": 0.22,
+            "terminal_incremental_revenue": 2302332.7107864534
+          }
+        ],
+        "estimated_base_terminal_increment": 2302332.7107864534,
+        "share_of_positive_driver_increment": 0.19999999999999998
+      },
+      {
+        "driver_id": "orderbook_conversion",
+        "title": "Near-term order-book and contract conversion",
+        "thesis": "~RMB 821.8M of binding unfilled orders plus ~RMB 1,240.7M of framework/contract pipeline (prospectus) provide visibility for 2026-2027 recognized revenue, subject to lumpy acceptance timing.",
+        "causal_chain": [
+          "binding orders and framework contracts",
+          "delivery and customer acceptance",
+          "point-in-time revenue recognition",
+          "recognized revenue"
+        ],
+        "parameter_ids": [
+          "ics_base_2026_g",
+          "ics_base_2027_g"
+        ],
+        "segment_attribution": [
+          {
+            "segment_name": "Intelligent Computing Solutions",
+            "weight": 0.15
+          }
+        ],
+        "horizon": {
+          "start_year": 2026,
+          "end_year": 2027
+        },
+        "persistence": "temporary",
+        "persistence_rationale": "The current order book is a finite near-term pipeline, not a durable growth mechanism; it bridges to the BR20X ramp.",
+        "evidence_nodes": [
+          {
+            "evidence_id": "orderbook",
+            "evidence_type": "company_demand_indicator",
+            "inference_distance": "direct",
+            "conclusion": "Prospectus discloses 24 binding unfilled orders (~RMB 821.8M) plus framework/contracts (~RMB 1,240.7M).",
+            "claim_ids": [
+              "claim_gd_orderbook"
+            ],
+            "source_ids": [
+              "biren_prospectus_2025"
+            ]
+          }
+        ],
+        "evidence_types": [
+          "company_demand_indicator"
+        ],
+        "evidence_source_ids": [
+          "biren_prospectus_2025"
+        ],
+        "evidence_status": "limited",
+        "leading_indicators": [
+          "order-book value",
+          "acceptance cadence",
+          "quarterly recognized revenue"
+        ],
+        "falsifiers": [
+          "orders slip or are cancelled",
+          "acceptance timing pushes revenue beyond 2027"
+        ],
+        "counterevidence_status": "searched_none_found",
+        "counterevidence_rationale": "No order-cancellation disclosure found; acceptance lumpiness is flagged as a forecast risk.",
+        "terminal_increment_by_segment": [
+          {
+            "segment_name": "Intelligent Computing Solutions",
+            "weight": 0.15,
+            "terminal_incremental_revenue": 1569772.3028089455
+          }
+        ],
+        "estimated_base_terminal_increment": 1569772.3028089455,
+        "share_of_positive_driver_increment": 0.13636363636363635
+      },
+      {
+        "driver_id": "foundry_export_headwind",
+        "title": "Foundry capacity and export-control headwind on shipment volume",
+        "thesis": "Reliance on third-party (domestic) foundries for 7nm-class wafers and the U.S. Entity List constrain deliverable shipment volume; this offsets part of the gross upside and is embedded in the Base path.",
+        "causal_chain": [
+          "Entity List + limited 7nm foundry capacity",
+          "constrained wafer supply",
+          "lower deliverable volume than demand would warrant",
+          "lower recognized revenue"
+        ],
+        "parameter_ids": [
+          "ics_base_2028_g",
+          "ics_base_2029_g",
+          "ics_base_2030_g"
+        ],
+        "segment_attribution": [
+          {
+            "segment_name": "Intelligent Computing Solutions",
+            "weight": -0.1
+          }
+        ],
+        "horizon": {
+          "start_year": 2028,
+          "end_year": 2030
+        },
+        "persistence": "uncertain",
+        "persistence_rationale": "Foundry capacity may ease or tighten depending on domestic 7nm maturation and export-rule changes.",
+        "evidence_nodes": [
+          {
+            "evidence_id": "foundry",
+            "evidence_type": "supply_constraint",
+            "inference_distance": "direct",
+            "conclusion": "Prospectus confirms fabless operation reliant on third-party contract manufacturers; Entity List history constrains advanced-node supply.",
+            "claim_ids": [
+              "claim_gd_foundry"
+            ],
+            "source_ids": [
+              "biren_prospectus_2025"
+            ]
+          }
+        ],
+        "evidence_types": [
+          "supply_constraint"
+        ],
+        "evidence_source_ids": [
+          "biren_prospectus_2025"
+        ],
+        "evidence_status": "limited",
+        "leading_indicators": [
+          "wafer allocation/shipments",
+          "BR20X volume deliveries",
+          "export-rule changes"
+        ],
+        "falsifiers": [
+          "domestic 7nm capacity scales freely",
+          "export rules ease"
+        ],
+        "counterevidence_status": "data_gap",
+        "counterevidence_rationale": "Foundry allocation is not quantified; headwind magnitude is an analyst judgment embedded in scenario dispersion.",
+        "terminal_increment_by_segment": [
+          {
+            "segment_name": "Intelligent Computing Solutions",
+            "weight": -0.1,
+            "terminal_incremental_revenue": -1046514.868539297
+          }
+        ],
+        "estimated_base_terminal_increment": -1046514.868539297,
+        "share_of_positive_driver_increment": 0.0
+      }
+    ],
+    "unattributed_company_adjustments": 0.0,
+    "reconciliation": {
+      "driver_attributed_segment_increment": 10465148.68539297,
+      "segment_increment_total": 10465148.68539297,
+      "unattributed_company_adjustments": 0.0,
+      "company_increment_total": 10465148.68539297,
+      "difference": 0.0
+    }
+  },
+  "sensitivities": [
+    {
+      "name": "FY2026 base growth +/-20% (range)",
+      "parameter_id": "ics_base_2026_g",
+      "shock_type": "range",
+      "shock_value": null,
+      "requested_values": {
+        "down": 0.2,
+        "up": 0.2
+      },
+      "effective_values": {
+        "down": 0.2,
+        "up": 0.2
+      },
+      "clamped": {
+        "down": false,
+        "up": false
+      },
+      "baseline_terminal_revenue": 11499762.68539297,
+      "down_terminal_revenue": 6489708.061734181,
+      "up_terminal_revenue": 6489708.061734181,
+      "max_absolute_terminal_impact": 5010054.623658789,
+      "max_relative_terminal_impact": 0.43566591422121903
+    },
+    {
+      "name": "FY2030 base growth +/-25% (range)",
+      "parameter_id": "ics_base_2030_g",
+      "shock_type": "range",
+      "shock_value": null,
+      "requested_values": {
+        "down": 0.25,
+        "up": 0.25
+      },
+      "effective_values": {
+        "down": 0.25,
+        "up": 0.25
+      },
+      "clamped": {
+        "down": false,
+        "up": false
+      },
+      "baseline_terminal_revenue": 11499762.68539297,
+      "down_terminal_revenue": 10999926.045868697,
+      "up_terminal_revenue": 10999926.045868697,
+      "max_absolute_terminal_impact": 499836.6395242736,
+      "max_relative_terminal_impact": 0.04346495255586165
+    },
+    {
+      "name": "FY2028 base growth +5pp (percentage_point)",
+      "parameter_id": "ics_base_2028_g",
+      "shock_type": "percentage_point",
+      "shock_value": 0.05,
+      "requested_values": {
+        "down": 0.5249999999999999,
+        "up": 0.625
+      },
+      "effective_values": {
+        "down": 0.5249999999999999,
+        "up": 0.625
+      },
+      "clamped": {
+        "down": false,
+        "up": false
+      },
+      "baseline_terminal_revenue": 11499762.68539297,
+      "down_terminal_revenue": 11134690.854110653,
+      "up_terminal_revenue": 11864834.516675288,
+      "max_absolute_terminal_impact": 365071.83128231764,
+      "max_relative_terminal_impact": 0.03174603174603184
+    }
+  ],
+  "theme_analysis": null,
+  "confidence": {
+    "score": 58.0,
+    "rating": "medium",
+    "components": {
+      "verified_claim_quality": 14.000000000000002,
+      "verified_claim_coverage": 25.0,
+      "source_freshness": 10.0,
+      "revenue_weighted_explicit_models": 0.0,
+      "historical_accuracy": 0.0,
+      "revenue_weighted_sensitivity_coverage": 9.000000000000002
+    },
+    "driver_evidence_coverage": 1.0,
+    "sensitivity_concentration": 0.8527806120822453,
+    "historical_accuracy": {
+      "wape": null,
+      "observations": 0
+    },
+    "quality_gates": {
+      "base_reconciliation": true,
+      "recognition_contract": true,
+      "scenario_consistency": true,
+      "research_coverage": true,
+      "management_target_coverage": true,
+      "growth_driver_tree": true
+    },
+    "limitations": [
+      "No immutable historical backtest record",
+      "One or more segments use a direct fallback model",
+      "Research coverage contains 2 material data gap(s)",
+      "Growth driver br20x_ramp is not triangulated across two evidence types and sources",
+      "Growth driver import_substitution_tam is not triangulated across two evidence types and sources",
+      "Growth driver customer_expansion is not triangulated across two evidence types and sources",
+      "Growth driver orderbook_conversion is not triangulated across two evidence types and sources",
+      "Growth driver foundry_export_headwind is not triangulated across two evidence types and sources"
+    ]
+  },
+  "forecast_version": "2026-08-04-v1",
+  "data_gaps": [
+    "No disclosed unit shipment volumes, ASP, capacity, utilization, or yield -> direct_growth fallback used; explicit-model coverage reduced.",
+    "Foundry (7nm wafer) allocation and Entity List capacity constraint not quantified -> absorbed qualitatively via headwind root and wide scenario dispersion.",
+    "No order-stock-flow (opening/bookings/cancellations/deliveries/closing) disclosed -> delivery_pipeline model not buildable; order book used only as evidence.",
+    "No quantitative forward revenue guidance or multi-year revenue target found in official communications -> management target ledger carries no in-horizon comparable target.",
+    "H1 2026 interim results not yet released as of the as-of date -> base year remains FY2025.",
+    "competition: Intense domestic competition (Huawei Ascend #1 domestic ~20% share, Cambricon, Moore Threads, Iluvatar Core, Tianxitianzhi/Mohan) plus falling ASP/mix drives gross-margin compression (100%->76%->53%->54%). Competitive pressure caps the growth rates and is embedded in the decelerating base path, but win-rate/ASP are not separately modeled (no unit economics disclosed).",
+    "capacity: Biren is fabless; wafer supply depends on third-party foundries (originally TSMC 7nm, cut off after the Oct-2022 Entity List addition; now reliant on SMIC domestic capacity). Commissioned wafer capacity, utilization, and yield are not disclosed, so deliverable volume cannot be modeled directly.",
+    "growth_driver:import_substitution_tam: counterevidence search is incomplete",
+    "growth_driver:foundry_export_headwind: counterevidence search is incomplete"
+  ],
+  "input_sha256": "0e1cc8d4c73de8587a1caf5240a7945451a94fcba3e9ad88b61148b461bbee4d",
   "input_document": {
     "_comment": "Shanghai Biren Technology (06082.HK) revenue forecast, schema 3.6. as_of 2026-08-04.",
-    "schema_version": "3.6",
+    "schema_version": "3.7",
     "company_name": "Shanghai Biren Technology Co., Ltd. (上海壁仞科技股份有限公司)",
     "company_identifiers": {
       "hkex_stock_code": "06082.HK",
@@ -1886,856 +2736,6 @@
     ],
     "confidence_note": "Low-to-moderate confidence. Early-revenue (~RMB 1.0B base), direct_growth fallback (no operating identity from disclosed data), binary foundry/export-control risk, extreme acceptance-based revenue lumpiness (FY2025 H2 was ~16x H1), and high customer concentration drive wide low/base/high dispersion (5-yr CAGR ~30% / ~62% / ~84%)."
   },
-  "research_coverage": {
-    "dimensions": [
-      {
-        "dimension": "company_foundation",
-        "status": "modeled_driver",
-        "conclusion": "Reported FY2025 revenue RMB 1,034.6M; single economic segment (intelligent computing solutions, ~99.3% of revenue).",
-        "revenue_mechanism": "reported total = segment base revenue (no adjustment)",
-        "parameter_ids": [
-          "reported_total_2025",
-          "ics_base_rev"
-        ],
-        "source_ids": [
-          "biren_ar2025"
-        ]
-      },
-      {
-        "dimension": "growth_curve",
-        "status": "modeled_driver",
-        "conclusion": "Forecast path driven by year-on-year growth of recognized intelligent-computing-solution revenue; direct_growth fallback because the company discloses no unit volumes, capacity, utilization, yield, ASP, or order-stock-flow.",
-        "revenue_mechanism": "revenue[t] = revenue[t-1] x (1 + growth_rate[t])",
-        "parameter_ids": [
-          "ics_base_2026_g",
-          "ics_base_2027_g",
-          "ics_base_2028_g",
-          "ics_base_2029_g",
-          "ics_base_2030_g"
-        ],
-        "source_ids": [
-          "biren_ar2025",
-          "biren_prospectus_2025"
-        ]
-      },
-      {
-        "dimension": "industry_market",
-        "status": "modeled_driver",
-        "conclusion": "China GPU market projected ~RMB 205B (2026) to ~RMB 542B (2030) (~27.6% CAGR); domestic share rising as NVIDIA China share falls (~55% in 2025). Biren was ~0.5% share in 2025. TAM growth supports the modeled growth rates; never used as a standalone driver.",
-        "revenue_mechanism": "addressable-market growth + share trajectory informs segment growth rates",
-        "parameter_ids": [
-          "ics_base_2026_g",
-          "ics_base_2027_g",
-          "ics_base_2028_g",
-          "ics_base_2029_g",
-          "ics_base_2030_g"
-        ],
-        "source_ids": [
-          "biren_ar2025"
-        ],
-        "rationale": "Third-party IDC/industry estimates triangulate demand; company-specific share conversion is the binding constraint."
-      },
-      {
-        "dimension": "competition",
-        "status": "data_gap",
-        "conclusion": "Intense domestic competition (Huawei Ascend #1 domestic ~20% share, Cambricon, Moore Threads, Iluvatar Core, Tianxitianzhi/Mohan) plus falling ASP/mix drives gross-margin compression (100%->76%->53%->54%). Competitive pressure caps the growth rates and is embedded in the decelerating base path, but win-rate/ASP are not separately modeled (no unit economics disclosed).",
-        "revenue_mechanism": "competition limits share capture and ASP -> embedded in growth-rate scenarios",
-        "parameter_ids": [
-          "ics_base_2026_g",
-          "ics_base_2027_g",
-          "ics_base_2028_g",
-          "ics_base_2029_g",
-          "ics_base_2030_g"
-        ],
-        "source_ids": [
-          "biren_ar2025",
-          "biren_prospectus_2025"
-        ],
-        "rationale": "No disclosed unit shipments, ASP, or win-rate; competitive impact can only be embedded qualitatively in the growth-rate paths, not decomposed into modeled parameters."
-      },
-      {
-        "dimension": "capacity",
-        "status": "data_gap",
-        "conclusion": "Biren is fabless; wafer supply depends on third-party foundries (originally TSMC 7nm, cut off after the Oct-2022 Entity List addition; now reliant on SMIC domestic capacity). Commissioned wafer capacity, utilization, and yield are not disclosed, so deliverable volume cannot be modeled directly.",
-        "revenue_mechanism": "foundry capacity + utilization + yield would cap deliverable volume; not disclosed",
-        "parameter_ids": [],
-        "source_ids": [
-          "biren_prospectus_2025"
-        ],
-        "rationale": "Foundry allocation and 7nm capacity are material but opaque; the direct_growth fallback and the foundry/export-control headwind root absorb this gap qualitatively."
-      },
-      {
-        "dimension": "technology",
-        "status": "modeled_driver",
-        "conclusion": "Next-generation BR20X series (FP8/FP4 engines, training+inference) planned for commercial launch in 2026 underpins the 2026-2028 growth acceleration; BIRENSUPA software platform and LightSphere X SuperPod (optical interconnect/dOCS) support cluster deployments.",
-        "revenue_mechanism": "product-launch timing and competitiveness inform near-term growth rates",
-        "parameter_ids": [
-          "ics_base_2026_g",
-          "ics_base_2027_g",
-          "ics_base_2028_g"
-        ],
-        "source_ids": [
-          "biren_ar2025"
-        ]
-      },
-      {
-        "dimension": "policy",
-        "status": "modeled_driver",
-        "conclusion": "U.S. Entity List (added Oct 2022) cut off TSMC advanced-node manufacturing and forced a foundry pivot; ongoing export controls are the dominant binary risk to shipment volume. Modeled as a quantified headwind on the growth path; import-substitution policy in China is a tailwind to demand.",
-        "revenue_mechanism": "export controls cap deliverable volume; substitution policy supports demand -> net embedded in growth scenarios + headwind root",
-        "parameter_ids": [
-          "ics_base_2028_g",
-          "ics_base_2029_g",
-          "ics_base_2030_g"
-        ],
-        "source_ids": [
-          "biren_prospectus_2025"
-        ],
-        "rationale": "Magnitude of foundry constraint is not separately quantified; treated via the headwind root and wide scenario dispersion."
-      },
-      {
-        "dimension": "customers",
-        "status": "modeled_driver",
-        "conclusion": "Customer base is small and concentrated but diversifying: 14 customers (FY2024) and 12 (H1 2025); top-5 concentration fell from 90.3% (2024) to 71.3% (2025), largest customer from 54.5% to 19.1%. Expansion of the customer base supports the modeled growth.",
-        "revenue_mechanism": "customer-count growth and concentration decline inform segment growth rates",
-        "parameter_ids": [
-          "ics_base_2027_g",
-          "ics_base_2028_g",
-          "ics_base_2029_g"
-        ],
-        "source_ids": [
-          "biren_ar2025",
-          "biren_prospectus_2025"
-        ]
-      },
-      {
-        "dimension": "demand",
-        "status": "modeled_driver",
-        "conclusion": "End demand is AI training and inference compute for intelligent computing centers and enterprises, reinforced by China import substitution. ~RMB 821.8M unfilled binding orders plus ~RMB 1,240.7M framework/contract pipeline (prospectus) evidence near-term demand visibility, though conversion to recognized revenue is lumpy and acceptance-based.",
-        "revenue_mechanism": "AI-compute demand -> orders -> acceptance -> recognized revenue (lumpy)",
-        "parameter_ids": [
-          "ics_base_2026_g",
-          "ics_base_2027_g"
-        ],
-        "source_ids": [
-          "biren_prospectus_2025",
-          "biren_ar2025"
-        ]
-      }
-    ],
-    "counts": {
-      "data_gap": 2,
-      "immaterial": 0,
-      "modeled_driver": 7
-    }
-  },
-  "management_target_coverage": {
-    "communications": [
-      {
-        "category": "latest_annual_filing",
-        "status": "checked",
-        "source_ids": [
-          "biren_ar2025"
-        ],
-        "checked_date": "2026-08-04",
-        "conclusion": "FY2025 Annual Report (published 2026-04-22, board-approved 2026-03-30) reviewed. No quantitative forward revenue guidance issued.",
-        "material_revenue_target_ids": []
-      },
-      {
-        "category": "latest_results_release",
-        "status": "checked",
-        "source_ids": [
-          "biren_ar2025"
-        ],
-        "checked_date": "2026-08-04",
-        "conclusion": "FY2025 annual results are contained in the annual report (revenue RMB 1,034.6M, +207.2%; adjusted loss RMB 873.8M). No revenue target provided.",
-        "material_revenue_target_ids": []
-      },
-      {
-        "category": "latest_earnings_call",
-        "status": "not_available",
-        "source_ids": [],
-        "checked_date": "2026-08-04",
-        "conclusion": "No earnings-call transcript found for this newly listed (Jan-2026) Chapter 18C issuer as of the as-of date.",
-        "material_revenue_target_ids": [],
-        "rationale": "Searched HKEXnews and company IR channels; no results-call transcript located.",
-        "search_description": "HKEXnews 06082 announcements + birentech.com IR; no earnings-call transcript as of 2026-08-04."
-      },
-      {
-        "category": "latest_investor_presentation",
-        "status": "checked",
-        "source_ids": [
-          "biren_prospectus_2025"
-        ],
-        "checked_date": "2026-08-04",
-        "conclusion": "The IPO prospectus (2025-12-22) is the latest investor-facing communication; it discloses the order pipeline and BR20X roadmap but no quantitative revenue target.",
-        "material_revenue_target_ids": []
-      },
-      {
-        "category": "latest_strategy_communication",
-        "status": "checked",
-        "source_ids": [
-          "biren_ar2025",
-          "biren_prospectus_2025"
-        ],
-        "checked_date": "2026-08-04",
-        "conclusion": "Chairman's report (AR) and prospectus outline strategy: BR20X 2026 launch, ~60% of IPO proceeds to next-gen GPGPU R&D, capacity expansion. No quantitative revenue target.",
-        "material_revenue_target_ids": []
-      },
-      {
-        "category": "material_announcements_since_last_filing",
-        "status": "not_available",
-        "source_ids": [],
-        "checked_date": "2026-08-04",
-        "conclusion": "No company announcement since the FY2025 annual report (2026-03-30 board approval) disclosing a quantitative revenue target was located. H1 2026 interim results not yet released as of the as-of date.",
-        "material_revenue_target_ids": [],
-        "rationale": "Searched HKEXnews for 06082 announcements after 2026-03-30; none contained a revenue target.",
-        "search_description": "HKEXnews 06082 announcements 2026-03-30 to 2026-08-04; no revenue-target announcement."
-      }
-    ],
-    "targets": [],
-    "counts": {
-      "communications_checked": 4,
-      "targets_total": 0,
-      "targets_modeled": 0,
-      "targets_unmodeled": 0
-    }
-  },
-  "scenario_probabilities": null,
-  "probability_weighted_forecast": null,
-  "growth_driver_analysis": {
-    "status": "modeled",
-    "top_drivers": [
-      {
-        "driver_id": "br20x_ramp",
-        "title": "BR20X next-generation product ramp (2026 launch)",
-        "thesis": "The 2026 commercial launch of BR20X (FP8/FP4 training+inference) drives the 2026-2028 growth acceleration as new compute density/memory/interconnect widens the addressable workload set.",
-        "estimated_base_terminal_increment": 4186059.474157188,
-        "share_of_positive_driver_increment": 0.3636363636363636,
-        "segment_names": [
-          "Intelligent Computing Solutions"
-        ],
-        "causal_chain": [
-          "BR20X launches in 2026",
-          "qualified and accepted by intelligent-computing-center customers",
-          "more eligible workloads (training+inference)",
-          "higher accepted solution revenue"
-        ],
-        "evidence_status": "limited",
-        "leading_indicators": [
-          "BR20X launch and customer qualification milestones",
-          "acceptance reports on BR20X deployments",
-          "R&D and tape-out cadence"
-        ],
-        "falsifiers": [
-          "BR20X launch slips beyond 2026",
-          "foundry capacity prevents volume shipment",
-          "BR20X fails customer acceptance"
-        ],
-        "rank": 1
-      },
-      {
-        "driver_id": "import_substitution_tam",
-        "title": "Import substitution and China GPU market growth",
-        "thesis": "NVIDIA's China share is declining (~55% in 2025) as domestic GPUs displace it; the China GPU market is projected to grow ~RMB 205B->542B (2026-2030), supporting baseline demand for Biren's growth rates.",
-        "estimated_base_terminal_increment": 3453499.06617968,
-        "share_of_positive_driver_increment": 0.3,
-        "segment_names": [
-          "Intelligent Computing Solutions"
-        ],
-        "causal_chain": [
-          "export controls + substitution policy",
-          "domestic procurement shifts to Chinese GPUs",
-          "larger addressable order flow",
-          "higher recognized revenue"
-        ],
-        "evidence_status": "limited",
-        "leading_indicators": [
-          "NVIDIA China share trajectory",
-          "domestic GPU shipment share",
-          "intelligent-computing-center procurement tenders"
-        ],
-        "falsifiers": [
-          "NVIDIA share stabilizes or export rules ease",
-          "domestic share gains accrue entirely to Huawei Ascend/Cambricon"
-        ],
-        "rank": 2
-      },
-      {
-        "driver_id": "customer_expansion",
-        "title": "Customer-base expansion and deconcentration",
-        "thesis": "Top-5 customer concentration fell from 90.3% (2024) to 71.3% (2025) and the largest customer from 54.5% to 19.1%, indicating a broadening customer base that supports durable mid-horizon growth.",
-        "estimated_base_terminal_increment": 2302332.7107864534,
-        "share_of_positive_driver_increment": 0.19999999999999998,
-        "segment_names": [
-          "Intelligent Computing Solutions"
-        ],
-        "causal_chain": [
-          "more customers across industries",
-          "less concentration risk",
-          "more accepted deployments per year",
-          "higher recognized revenue"
-        ],
-        "evidence_status": "limited",
-        "leading_indicators": [
-          "customer count",
-          "top-5 concentration ratio",
-          "new-customer wins"
-        ],
-        "falsifiers": [
-          "concentration rises again",
-          "a major customer is lost and not replaced"
-        ],
-        "rank": 3
-      },
-      {
-        "driver_id": "orderbook_conversion",
-        "title": "Near-term order-book and contract conversion",
-        "thesis": "~RMB 821.8M of binding unfilled orders plus ~RMB 1,240.7M of framework/contract pipeline (prospectus) provide visibility for 2026-2027 recognized revenue, subject to lumpy acceptance timing.",
-        "estimated_base_terminal_increment": 1569772.3028089455,
-        "share_of_positive_driver_increment": 0.13636363636363635,
-        "segment_names": [
-          "Intelligent Computing Solutions"
-        ],
-        "causal_chain": [
-          "binding orders and framework contracts",
-          "delivery and customer acceptance",
-          "point-in-time revenue recognition",
-          "recognized revenue"
-        ],
-        "evidence_status": "limited",
-        "leading_indicators": [
-          "order-book value",
-          "acceptance cadence",
-          "quarterly recognized revenue"
-        ],
-        "falsifiers": [
-          "orders slip or are cancelled",
-          "acceptance timing pushes revenue beyond 2027"
-        ],
-        "rank": 4
-      }
-    ],
-    "headwinds": [
-      {
-        "driver_id": "foundry_export_headwind",
-        "title": "Foundry capacity and export-control headwind on shipment volume",
-        "thesis": "Reliance on third-party (domestic) foundries for 7nm-class wafers and the U.S. Entity List constrain deliverable shipment volume; this offsets part of the gross upside and is embedded in the Base path.",
-        "estimated_base_terminal_increment": -1046514.868539297,
-        "share_of_positive_driver_increment": 0.0,
-        "segment_names": [
-          "Intelligent Computing Solutions"
-        ],
-        "causal_chain": [
-          "Entity List + limited 7nm foundry capacity",
-          "constrained wafer supply",
-          "lower deliverable volume than demand would warrant",
-          "lower recognized revenue"
-        ],
-        "evidence_status": "limited",
-        "leading_indicators": [
-          "wafer allocation/shipments",
-          "BR20X volume deliveries",
-          "export-rule changes"
-        ],
-        "falsifiers": [
-          "domestic 7nm capacity scales freely",
-          "export rules ease"
-        ],
-        "rank": 1
-      }
-    ],
-    "drivers": [
-      {
-        "driver_id": "br20x_ramp",
-        "title": "BR20X next-generation product ramp (2026 launch)",
-        "thesis": "The 2026 commercial launch of BR20X (FP8/FP4 training+inference) drives the 2026-2028 growth acceleration as new compute density/memory/interconnect widens the addressable workload set.",
-        "causal_chain": [
-          "BR20X launches in 2026",
-          "qualified and accepted by intelligent-computing-center customers",
-          "more eligible workloads (training+inference)",
-          "higher accepted solution revenue"
-        ],
-        "parameter_ids": [
-          "ics_base_2026_g",
-          "ics_base_2027_g",
-          "ics_base_2028_g"
-        ],
-        "segment_attribution": [
-          {
-            "segment_name": "Intelligent Computing Solutions",
-            "weight": 0.4
-          }
-        ],
-        "horizon": {
-          "start_year": 2026,
-          "end_year": 2028
-        },
-        "persistence": "multi_year_structural",
-        "persistence_rationale": "A new chip generation drives a multi-year replacement and capacity-expansion cycle across the forecast horizon.",
-        "evidence_nodes": [
-          {
-            "evidence_id": "br20x",
-            "evidence_type": "company_product_roadmap",
-            "inference_distance": "direct",
-            "conclusion": "AR Chairman's report states BR20X is planned for commercial launch in 2026 with FP8/FP4 engines.",
-            "claim_ids": [
-              "claim_gd_br20x"
-            ],
-            "source_ids": [
-              "biren_ar2025"
-            ]
-          },
-          {
-            "evidence_id": "rnd",
-            "evidence_type": "company_investment",
-            "inference_distance": "one_step",
-            "conclusion": "RMB1,476.1M R&D (+78.5% YoY) and ~RMB5,631.4M IPO proceeds fund next-gen products and capacity, supporting the ramp.",
-            "claim_ids": [
-              "claim_gd_rnd"
-            ],
-            "source_ids": [
-              "biren_ar2025"
-            ]
-          }
-        ],
-        "evidence_types": [
-          "company_product_roadmap",
-          "company_investment"
-        ],
-        "evidence_source_ids": [
-          "biren_ar2025"
-        ],
-        "evidence_status": "limited",
-        "leading_indicators": [
-          "BR20X launch and customer qualification milestones",
-          "acceptance reports on BR20X deployments",
-          "R&D and tape-out cadence"
-        ],
-        "falsifiers": [
-          "BR20X launch slips beyond 2026",
-          "foundry capacity prevents volume shipment",
-          "BR20X fails customer acceptance"
-        ],
-        "counterevidence_status": "searched_none_found",
-        "counterevidence_rationale": "Checked AR/prospectus for launch delays; none disclosed. Foundry-capacity risk is registered as a separate headwind.",
-        "terminal_increment_by_segment": [
-          {
-            "segment_name": "Intelligent Computing Solutions",
-            "weight": 0.4,
-            "terminal_incremental_revenue": 4186059.474157188
-          }
-        ],
-        "estimated_base_terminal_increment": 4186059.474157188,
-        "share_of_positive_driver_increment": 0.3636363636363636
-      },
-      {
-        "driver_id": "import_substitution_tam",
-        "title": "Import substitution and China GPU market growth",
-        "thesis": "NVIDIA's China share is declining (~55% in 2025) as domestic GPUs displace it; the China GPU market is projected to grow ~RMB 205B->542B (2026-2030), supporting baseline demand for Biren's growth rates.",
-        "causal_chain": [
-          "export controls + substitution policy",
-          "domestic procurement shifts to Chinese GPUs",
-          "larger addressable order flow",
-          "higher recognized revenue"
-        ],
-        "parameter_ids": [
-          "ics_base_2026_g",
-          "ics_base_2027_g",
-          "ics_base_2028_g",
-          "ics_base_2029_g",
-          "ics_base_2030_g"
-        ],
-        "segment_attribution": [
-          {
-            "segment_name": "Intelligent Computing Solutions",
-            "weight": 0.33
-          }
-        ],
-        "horizon": {
-          "start_year": 2026,
-          "end_year": 2030
-        },
-        "persistence": "multi_year_structural",
-        "persistence_rationale": "Substitution is a structural, policy-backed multi-year shift across the forecast horizon.",
-        "evidence_nodes": [
-          {
-            "evidence_id": "ics_share",
-            "evidence_type": "market_structure",
-            "inference_distance": "one_step",
-            "conclusion": "Biren's revenue scale (~RMB 1.03B in 2025) is small relative to the ~RMB 205B+ market, leaving room for share gains if substitution continues.",
-            "claim_ids": [
-              "claim_gd_ics_share"
-            ],
-            "source_ids": [
-              "biren_ar2025"
-            ]
-          }
-        ],
-        "evidence_types": [
-          "market_structure"
-        ],
-        "evidence_source_ids": [
-          "biren_ar2025"
-        ],
-        "evidence_status": "limited",
-        "leading_indicators": [
-          "NVIDIA China share trajectory",
-          "domestic GPU shipment share",
-          "intelligent-computing-center procurement tenders"
-        ],
-        "falsifiers": [
-          "NVIDIA share stabilizes or export rules ease",
-          "domestic share gains accrue entirely to Huawei Ascend/Cambricon"
-        ],
-        "counterevidence_status": "data_gap",
-        "counterevidence_rationale": "Biren-specific win-rate against Huawei Ascend is not disclosed; share-gain magnitude is uncertain.",
-        "terminal_increment_by_segment": [
-          {
-            "segment_name": "Intelligent Computing Solutions",
-            "weight": 0.33,
-            "terminal_incremental_revenue": 3453499.06617968
-          }
-        ],
-        "estimated_base_terminal_increment": 3453499.06617968,
-        "share_of_positive_driver_increment": 0.3
-      },
-      {
-        "driver_id": "customer_expansion",
-        "title": "Customer-base expansion and deconcentration",
-        "thesis": "Top-5 customer concentration fell from 90.3% (2024) to 71.3% (2025) and the largest customer from 54.5% to 19.1%, indicating a broadening customer base that supports durable mid-horizon growth.",
-        "causal_chain": [
-          "more customers across industries",
-          "less concentration risk",
-          "more accepted deployments per year",
-          "higher recognized revenue"
-        ],
-        "parameter_ids": [
-          "ics_base_2027_g",
-          "ics_base_2028_g",
-          "ics_base_2029_g"
-        ],
-        "segment_attribution": [
-          {
-            "segment_name": "Intelligent Computing Solutions",
-            "weight": 0.22
-          }
-        ],
-        "horizon": {
-          "start_year": 2027,
-          "end_year": 2029
-        },
-        "persistence": "multi_year_structural",
-        "persistence_rationale": "Customer acquisition compounds across the horizon.",
-        "evidence_nodes": [
-          {
-            "evidence_id": "customers",
-            "evidence_type": "customer_demand",
-            "inference_distance": "direct",
-            "conclusion": "AR discloses falling top-5 (71.3%) and largest-customer (19.1%) concentration in FY2025.",
-            "claim_ids": [
-              "claim_gd_customers"
-            ],
-            "source_ids": [
-              "biren_ar2025"
-            ]
-          }
-        ],
-        "evidence_types": [
-          "customer_demand"
-        ],
-        "evidence_source_ids": [
-          "biren_ar2025"
-        ],
-        "evidence_status": "limited",
-        "leading_indicators": [
-          "customer count",
-          "top-5 concentration ratio",
-          "new-customer wins"
-        ],
-        "falsifiers": [
-          "concentration rises again",
-          "a major customer is lost and not replaced"
-        ],
-        "counterevidence_status": "searched_none_found",
-        "counterevidence_rationale": "Checked AR for customer-loss disclosures; concentration is improving.",
-        "terminal_increment_by_segment": [
-          {
-            "segment_name": "Intelligent Computing Solutions",
-            "weight": 0.22,
-            "terminal_incremental_revenue": 2302332.7107864534
-          }
-        ],
-        "estimated_base_terminal_increment": 2302332.7107864534,
-        "share_of_positive_driver_increment": 0.19999999999999998
-      },
-      {
-        "driver_id": "orderbook_conversion",
-        "title": "Near-term order-book and contract conversion",
-        "thesis": "~RMB 821.8M of binding unfilled orders plus ~RMB 1,240.7M of framework/contract pipeline (prospectus) provide visibility for 2026-2027 recognized revenue, subject to lumpy acceptance timing.",
-        "causal_chain": [
-          "binding orders and framework contracts",
-          "delivery and customer acceptance",
-          "point-in-time revenue recognition",
-          "recognized revenue"
-        ],
-        "parameter_ids": [
-          "ics_base_2026_g",
-          "ics_base_2027_g"
-        ],
-        "segment_attribution": [
-          {
-            "segment_name": "Intelligent Computing Solutions",
-            "weight": 0.15
-          }
-        ],
-        "horizon": {
-          "start_year": 2026,
-          "end_year": 2027
-        },
-        "persistence": "temporary",
-        "persistence_rationale": "The current order book is a finite near-term pipeline, not a durable growth mechanism; it bridges to the BR20X ramp.",
-        "evidence_nodes": [
-          {
-            "evidence_id": "orderbook",
-            "evidence_type": "company_demand_indicator",
-            "inference_distance": "direct",
-            "conclusion": "Prospectus discloses 24 binding unfilled orders (~RMB 821.8M) plus framework/contracts (~RMB 1,240.7M).",
-            "claim_ids": [
-              "claim_gd_orderbook"
-            ],
-            "source_ids": [
-              "biren_prospectus_2025"
-            ]
-          }
-        ],
-        "evidence_types": [
-          "company_demand_indicator"
-        ],
-        "evidence_source_ids": [
-          "biren_prospectus_2025"
-        ],
-        "evidence_status": "limited",
-        "leading_indicators": [
-          "order-book value",
-          "acceptance cadence",
-          "quarterly recognized revenue"
-        ],
-        "falsifiers": [
-          "orders slip or are cancelled",
-          "acceptance timing pushes revenue beyond 2027"
-        ],
-        "counterevidence_status": "searched_none_found",
-        "counterevidence_rationale": "No order-cancellation disclosure found; acceptance lumpiness is flagged as a forecast risk.",
-        "terminal_increment_by_segment": [
-          {
-            "segment_name": "Intelligent Computing Solutions",
-            "weight": 0.15,
-            "terminal_incremental_revenue": 1569772.3028089455
-          }
-        ],
-        "estimated_base_terminal_increment": 1569772.3028089455,
-        "share_of_positive_driver_increment": 0.13636363636363635
-      },
-      {
-        "driver_id": "foundry_export_headwind",
-        "title": "Foundry capacity and export-control headwind on shipment volume",
-        "thesis": "Reliance on third-party (domestic) foundries for 7nm-class wafers and the U.S. Entity List constrain deliverable shipment volume; this offsets part of the gross upside and is embedded in the Base path.",
-        "causal_chain": [
-          "Entity List + limited 7nm foundry capacity",
-          "constrained wafer supply",
-          "lower deliverable volume than demand would warrant",
-          "lower recognized revenue"
-        ],
-        "parameter_ids": [
-          "ics_base_2028_g",
-          "ics_base_2029_g",
-          "ics_base_2030_g"
-        ],
-        "segment_attribution": [
-          {
-            "segment_name": "Intelligent Computing Solutions",
-            "weight": -0.1
-          }
-        ],
-        "horizon": {
-          "start_year": 2028,
-          "end_year": 2030
-        },
-        "persistence": "uncertain",
-        "persistence_rationale": "Foundry capacity may ease or tighten depending on domestic 7nm maturation and export-rule changes.",
-        "evidence_nodes": [
-          {
-            "evidence_id": "foundry",
-            "evidence_type": "supply_constraint",
-            "inference_distance": "direct",
-            "conclusion": "Prospectus confirms fabless operation reliant on third-party contract manufacturers; Entity List history constrains advanced-node supply.",
-            "claim_ids": [
-              "claim_gd_foundry"
-            ],
-            "source_ids": [
-              "biren_prospectus_2025"
-            ]
-          }
-        ],
-        "evidence_types": [
-          "supply_constraint"
-        ],
-        "evidence_source_ids": [
-          "biren_prospectus_2025"
-        ],
-        "evidence_status": "limited",
-        "leading_indicators": [
-          "wafer allocation/shipments",
-          "BR20X volume deliveries",
-          "export-rule changes"
-        ],
-        "falsifiers": [
-          "domestic 7nm capacity scales freely",
-          "export rules ease"
-        ],
-        "counterevidence_status": "data_gap",
-        "counterevidence_rationale": "Foundry allocation is not quantified; headwind magnitude is an analyst judgment embedded in scenario dispersion.",
-        "terminal_increment_by_segment": [
-          {
-            "segment_name": "Intelligent Computing Solutions",
-            "weight": -0.1,
-            "terminal_incremental_revenue": -1046514.868539297
-          }
-        ],
-        "estimated_base_terminal_increment": -1046514.868539297,
-        "share_of_positive_driver_increment": 0.0
-      }
-    ],
-    "unattributed_company_adjustments": 0.0,
-    "reconciliation": {
-      "driver_attributed_segment_increment": 10465148.68539297,
-      "segment_increment_total": 10465148.68539297,
-      "unattributed_company_adjustments": 0.0,
-      "company_increment_total": 10465148.68539297,
-      "difference": 0.0
-    }
-  },
-  "sensitivities": [
-    {
-      "name": "FY2026 base growth +/-20% (range)",
-      "parameter_id": "ics_base_2026_g",
-      "shock_type": "range",
-      "shock_value": null,
-      "requested_values": {
-        "down": 0.2,
-        "up": 0.2
-      },
-      "effective_values": {
-        "down": 0.2,
-        "up": 0.2
-      },
-      "clamped": {
-        "down": false,
-        "up": false
-      },
-      "baseline_terminal_revenue": 11499762.68539297,
-      "down_terminal_revenue": 6489708.061734181,
-      "up_terminal_revenue": 6489708.061734181,
-      "max_absolute_terminal_impact": 5010054.623658789,
-      "max_relative_terminal_impact": 0.43566591422121903
-    },
-    {
-      "name": "FY2030 base growth +/-25% (range)",
-      "parameter_id": "ics_base_2030_g",
-      "shock_type": "range",
-      "shock_value": null,
-      "requested_values": {
-        "down": 0.25,
-        "up": 0.25
-      },
-      "effective_values": {
-        "down": 0.25,
-        "up": 0.25
-      },
-      "clamped": {
-        "down": false,
-        "up": false
-      },
-      "baseline_terminal_revenue": 11499762.68539297,
-      "down_terminal_revenue": 10999926.045868697,
-      "up_terminal_revenue": 10999926.045868697,
-      "max_absolute_terminal_impact": 499836.6395242736,
-      "max_relative_terminal_impact": 0.04346495255586165
-    },
-    {
-      "name": "FY2028 base growth +5pp (percentage_point)",
-      "parameter_id": "ics_base_2028_g",
-      "shock_type": "percentage_point",
-      "shock_value": 0.05,
-      "requested_values": {
-        "down": 0.5249999999999999,
-        "up": 0.625
-      },
-      "effective_values": {
-        "down": 0.5249999999999999,
-        "up": 0.625
-      },
-      "clamped": {
-        "down": false,
-        "up": false
-      },
-      "baseline_terminal_revenue": 11499762.68539297,
-      "down_terminal_revenue": 11134690.854110653,
-      "up_terminal_revenue": 11864834.516675288,
-      "max_absolute_terminal_impact": 365071.83128231764,
-      "max_relative_terminal_impact": 0.03174603174603184
-    }
-  ],
-  "theme_analysis": null,
-  "confidence": {
-    "score": 58.0,
-    "rating": "medium",
-    "components": {
-      "verified_claim_quality": 14.000000000000002,
-      "verified_claim_coverage": 25.0,
-      "source_freshness": 10.0,
-      "revenue_weighted_explicit_models": 0.0,
-      "historical_accuracy": 0.0,
-      "revenue_weighted_sensitivity_coverage": 9.000000000000002
-    },
-    "driver_evidence_coverage": 1.0,
-    "sensitivity_concentration": 0.8527806120822453,
-    "historical_accuracy": {
-      "wape": null,
-      "observations": 0
-    },
-    "quality_gates": {
-      "base_reconciliation": true,
-      "recognition_contract": true,
-      "scenario_consistency": true,
-      "research_coverage": true,
-      "management_target_coverage": true,
-      "growth_driver_tree": true
-    },
-    "limitations": [
-      "No immutable historical backtest record",
-      "One or more segments use a direct fallback model",
-      "Research coverage contains 2 material data gap(s)",
-      "Growth driver br20x_ramp is not triangulated across two evidence types and sources",
-      "Growth driver import_substitution_tam is not triangulated across two evidence types and sources",
-      "Growth driver customer_expansion is not triangulated across two evidence types and sources",
-      "Growth driver orderbook_conversion is not triangulated across two evidence types and sources",
-      "Growth driver foundry_export_headwind is not triangulated across two evidence types and sources"
-    ]
-  },
-  "forecast_version": "2026-08-04-v1",
-  "data_gaps": [
-    "No disclosed unit shipment volumes, ASP, capacity, utilization, or yield -> direct_growth fallback used; explicit-model coverage reduced.",
-    "Foundry (7nm wafer) allocation and Entity List capacity constraint not quantified -> absorbed qualitatively via headwind root and wide scenario dispersion.",
-    "No order-stock-flow (opening/bookings/cancellations/deliveries/closing) disclosed -> delivery_pipeline model not buildable; order book used only as evidence.",
-    "No quantitative forward revenue guidance or multi-year revenue target found in official communications -> management target ledger carries no in-horizon comparable target.",
-    "H1 2026 interim results not yet released as of the as-of date -> base year remains FY2025.",
-    "competition: Intense domestic competition (Huawei Ascend #1 domestic ~20% share, Cambricon, Moore Threads, Iluvatar Core, Tianxitianzhi/Mohan) plus falling ASP/mix drives gross-margin compression (100%->76%->53%->54%). Competitive pressure caps the growth rates and is embedded in the decelerating base path, but win-rate/ASP are not separately modeled (no unit economics disclosed).",
-    "capacity: Biren is fabless; wafer supply depends on third-party foundries (originally TSMC 7nm, cut off after the Oct-2022 Entity List addition; now reliant on SMIC domestic capacity). Commissioned wafer capacity, utilization, and yield are not disclosed, so deliverable volume cannot be modeled directly.",
-    "growth_driver:import_substitution_tam: counterevidence search is incomplete",
-    "growth_driver:foundry_export_headwind: counterevidence search is incomplete"
-  ],
   "disconfirming_indicators": [],
   "parameter_trace": [
     {
@@ -3603,7 +3603,7 @@
       "growth_driver_tree",
       "revenue_model"
     ],
-    "input_sha256": "bb8e3984c13e32eb49a7d262c63ac9c0737f2a6e260944e31f01a043647e7f4e",
+    "input_sha256": "0e1cc8d4c73de8587a1caf5240a7945451a94fcba3e9ad88b61148b461bbee4d",
     "source_capture_receipt_sha256s": [
       "514a12394c2b976b6708abc544394e280090fee9a779a4cab80b3348f684a4f5",
       "d0092fe4d11311e7c70818390539ffff30818264a2a74d145728dcde4f66d3bd"
@@ -3633,23 +3633,24 @@
     "untrusted_content_treatment": "data_only_never_instructions",
     "formal_output_authority": "validated_runtime_renderer_only",
     "freeform_formal_output_allowed": false,
-    "receipt_sha256": "215c9f38397db45fe665af652989747148a59408ec011217ca60576c663ef91f"
+    "receipt_sha256": "8220a7fccf87c20cca4638266c93bc7503c8c607ab110fab795cc72565f7ea4d"
   },
   "publication_receipt": {
     "receipt_schema_version": "1.0",
-    "schema_version": "3.6",
-    "engine_version": "3.10.0",
-    "validated_input_sha256": "bb8e3984c13e32eb49a7d262c63ac9c0737f2a6e260944e31f01a043647e7f4e",
-    "validated_payload_sha256": "673fa7eec4638dab23c0de544247ea3666411b3197dcae2cb7ec823bcc391a2a",
-    "validator_version": "3.10.0",
+    "schema_version": "3.7",
+    "engine_version": "4.0.0",
+    "validated_input_sha256": "0e1cc8d4c73de8587a1caf5240a7945451a94fcba3e9ad88b61148b461bbee4d",
+    "validated_payload_sha256": "9db14abc31dcd940ce678131b0200dcbdc1e96472cd9fd8db90ba2fa018c5746",
+    "validator_version": "4.0.0",
     "gate_ids": [
       "output_recomputation",
       "sensitivity_shock_recomputation"
     ],
-    "verification_context_sha256": "53bcd29f4feb9c28a13b4430543c4e43d68761b95bcbe65ffdaf6effe3d4d66d",
+    "verification_context_sha256": "1001572a8858a0a6ad3de94a0b43be52927949c2f06a681ca233b478449cf8aa",
     "formal_output_mode": "formal",
     "freeform_override_allowed": false,
-    "receipt_sha256": "23691c3bcd3fc992a7864f4420ba745214b3d0929c36144739489209099f830c"
+    "attestation_status": "host_signed",
+    "receipt_sha256": "a09a0c74cd459b88e3382ba90621337b2cb35e0fc82c25462cac6a8ee738d134"
   },
-  "result_sha256": "c39b1e341a413c9e353d2ccb759ec681f288166b130ca15934e687cd8170c96e"
+  "result_sha256": "0c8c3f6f9dbcae8b238c0360aee7ff512a8e8d668c2bd6447052704204a9fdeb"
 }

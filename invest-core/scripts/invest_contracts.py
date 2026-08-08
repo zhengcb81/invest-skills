@@ -371,6 +371,9 @@ def validate_revenue_forecast(result: dict[str, Any]) -> None:
     try:
         embedded = result.get("input_document")
         if isinstance(embedded, dict):
+            # R1.1 (N-01): bind before the strong path so a forged anchor is
+            # rejected here, before any downstream consumer can use the result.
+            report.verify_input_binding(result, embedded)
             report.validate_published_forecast(result, embedded)
         else:
             report.validate_forecast_output(result)
@@ -1042,8 +1045,30 @@ def normalize_revenue_reference(ref: dict[str, Any] | None) -> dict[str, Any] | 
     return normalized
 
 
+def _registry_contains(input_sha256: str) -> bool:
+    """Fail-closed registration check against revenue-forecast's registry.
+
+    Unverifiable (module missing, no registry file) -> False.  A corrupt
+    registry is an error, not an absence.
+    """
+    try:
+        revenue_runtime()  # ensure the revenue scripts dir is on sys.path
+        import publication_registry
+    except Exception:
+        return False
+    try:
+        return publication_registry.is_registered(input_sha256)
+    except publication_registry.RegistryError as exc:
+        raise InvestmentArtifactError(f"publication registry corrupt: {exc}") from exc
+
+
 def adapt_revenue(
-    result: dict[str, Any], scope: str = "company", segment_name: str | None = None
+    result: dict[str, Any],
+    scope: str = "company",
+    segment_name: str | None = None,
+    *,
+    require_registered_input: bool = True,
+    require_attestation: bool = True,
 ) -> dict[str, Any]:
     # Publication gate (Phase 11.1): only accept schema 3.5 results whose
     # publication receipt is valid, formal, and carries the output-recomputation
@@ -1085,6 +1110,36 @@ def adapt_revenue(
         receipt.get("receipt_sha256") == expected_receipt_sha,
         "publication_receipt receipt_sha256 mismatch",
     )
+    # Legacy (pre-attestation, pre-registry) artifacts are read-only compatible:
+    # they may be consumed for lineage/labeling but never create new leaf
+    # artifacts, so the R1.2/R2.1 gates do not apply to them (R1.2 migration).
+    is_legacy = result["schema_version"] != revenue_runtime()[0].FORECAST_SCHEMA_VERSION
+    # R1.2 (N-01): the input anchor must be registered in revenue-forecast's
+    # publication registry — the artifact-external authority.  Default ON;
+    # an explicit downgrade is allowed but must be recorded in the adapter.
+    registered_input_verification = "legacy_read_only" if is_legacy else "registered"
+    if not is_legacy and require_registered_input:
+        _fail(
+            _registry_contains(result["input_sha256"]),
+            "revenue input not registered in publication registry",
+        )
+    elif not is_legacy:
+        registered_input_verification = "bypassed"
+    # R2.1: unattested formal artifacts are rejected by default; an explicit
+    # downgrade must be recorded in the adapter (trace, not silent).
+    attestation_status = receipt.get("attestation_status", "unattested")
+    if is_legacy:
+        attestation_verification = "legacy_read_only"
+    elif attestation_status == "host_signed":
+        attestation_verification = "host_signed"
+    else:
+        if require_attestation:
+            _fail(
+                False,
+                "revenue result is unattested; formal consumption requires a "
+                "host-signed attestation",
+            )
+        attestation_verification = "unattested_bypassed"
     ref = revenue_reference(result)
     _fail(scope in {"company", "segment"}, "scope must be company or segment")
     years = [str(year) for year in result["forecast_years"]]
@@ -1138,6 +1193,8 @@ def adapt_revenue(
         "base_revenue": base_revenue,
         "annual_revenue": paths,
         "revenue_forecast_ref": ref,
+        "registered_input_verification": registered_input_verification,
+        "attestation_verification": attestation_verification,
     }
     adapter["adapter_sha256"] = canonical_sha256(adapter)
     return adapter

@@ -1,0 +1,40 @@
+{
+  "input_forecast_sha256": "0e1cc8d4c73de8587a1caf5240a7945451a94fcba3e9ad88b61148b461bbee4d",
+  "input_forecast_result_sha256": "0c8c3f6f9dbcae8b238c0360aee7ff512a8e8d668c2bd6447052704204a9fdeb",
+  "input_forecast_input_sha256": "0e1cc8d4c73de8587a1caf5240a7945451a94fcba3e9ad88b61148b461bbee4d",
+  "module_counts": {
+    "financials": 1,
+    "sotp": 1,
+    "valuation": 1
+  },
+  "bundle_sha256": "2f165b572f9b56753b0f94d5bc856b622ace7b933d747f76c835660d1a8e0c51",
+  "report_sha256": "c7e1c66c8a4b438cdd1a3e4554d31263ece2690751e71ae6be5da08378a51354",
+  "receipt_sha256": "6634726b3774a8a532abf4305991c4caf0c346a7f15b8fb6340afeb2f539eb40",
+  "receipt_status": "pass",
+  "receipt_freeform": false,
+  "receipt_formal_report_sha256": "440dcd4d9c19db5507a3556504be0a87ee404c9e3d4792fef9954aaf84a8c057",
+  "revenue_effective_2030": {
+    "low": 3900116.7765093273,
+    "base": 11499762.68539297,
+    "high": 21997209.28585315
+  },
+  "financials_terminal_net_income": {
+    "low": -3705110.937683861,
+    "base": -9717299.469157059,
+    "high": -14298186.03580455
+  },
+  "valuation_equity": {
+    "low": 7800233.553018655,
+    "base": 40249169.39887539,
+    "high": 131983255.71511891
+  },
+  "sotp_equity": {
+    "low": 7800233.553018655,
+    "base": 40249169.39887539,
+    "high": 131983255.71511891
+  },
+  "report_contains_drivers": true,
+  "report_contains_value_table": true,
+  "invest_skills_head": "22fb59378b290ae86c80de4e08c207d3e26b7d13",
+  "revenue_forecast_head": "0e114337d30cebd53d21779adcf22c89da1c4624"
+}
