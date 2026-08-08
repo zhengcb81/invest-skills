@@ -86,7 +86,15 @@ def collect_step_1_forecast_valid(forecast: dict, forecast_path: Path) -> None:
         validate_published_forecast(forecast, forecast["input_document"])
     except Exception as exc:
         raise AssertionError(f"STEP 1 FAILED: strong forecast validation rejected the artifact: {exc}")
-    _report("  ok   STEP 1: input forecast is a strong-validated formal artifact")
+    # R1.2: register the fixture's anchor so require_registered_input consumers
+    # pass in CI (the registry is a runtime artifact, not part of the repo).
+    try:
+        import publication_registry
+
+        publication_registry.register_publication(forecast, note="biren invest e2e fixture")
+    except Exception as exc:
+        raise AssertionError(f"STEP 1 FAILED: publication registry unavailable: {exc}")
+    _report("  ok   STEP 1: input forecast is a strong-validated formal artifact (registered)")
 
 
 def collect_step_2_manifest_contract(manifest: dict, forecast: dict) -> None:
