@@ -117,7 +117,12 @@ class RevenueAdapterTests(unittest.TestCase):
         result.pop("publication_receipt", None)
         result.pop("result_sha256", None)
         context = report.validate_published_forecast(result, result["input_document"])
-        result["publication_receipt"] = build_publication_receipt(result, context)
+        # R2.1: the fixture was published as host_signed; rebuilding the receipt
+        # after capture edits must preserve that attestation (and never turn a
+        # legitimate fixture into an unattested one that other tests share).
+        result["publication_receipt"] = build_publication_receipt(
+            result, context, attestation_status="host_signed"
+        )
         result["result_sha256"] = core.canonical_sha256(
             {key: value for key, value in result.items() if key != "result_sha256"}
         )
@@ -276,6 +281,7 @@ class RevenueAdapterTests(unittest.TestCase):
                 expected_publication_gates(forged),
                 core.ENGINE_VERSION,
             ),
+            attestation_status="host_signed",  # forged claim — must fail on content
         )
         forged["result_sha256"] = core.canonical_sha256(
             {key: value for key, value in forged.items() if key != "result_sha256"}
@@ -315,6 +321,141 @@ class RevenueAdapterTests(unittest.TestCase):
                 scenario_set=["low", "base", "high"],
                 revenue_forecast_ref=tampered,
             )
+
+
+    def test_forged_revenue_artifact_is_rejected_across_boundary(self) -> None:
+        # R1.1 RED (N-01 cross-repo): a forged revenue artifact whose numbers
+        # were inflated by re-running the engine on attacker-modified input,
+        # then anchored to a legitimate input hash with every hash re-signed,
+        # must be rejected by both validate_revenue_forecast and adapt_revenue.
+        # Previously ACCEPTED (probe_invest_cross).
+        from revenue_core import (
+            ENGINE_VERSION,
+            canonical_sha256,
+            run_forecast,
+        )
+        from revenue_publication import (
+            VerificationContext,
+            build_publication_receipt,
+            expected_publication_gates,
+        )
+        from test_recognition_bridge import forecast_document
+        from invest_contracts import validate_revenue_forecast
+
+        data = forecast_document()
+        legit = run_forecast(copy.deepcopy(data))
+        attacker_input = copy.deepcopy(data)
+        for parameter in attacker_input["parameters"]:
+            if isinstance(parameter.get("value"), (int, float)) and parameter.get(
+                "kind"
+            ) in {"analyst_assumption", "scenario_stress"}:
+                parameter["value"] = float(parameter["value"]) * 1.5
+        forged = run_forecast(attacker_input)
+        forged["input_sha256"] = legit["input_sha256"]
+        forged["workflow_compliance_receipt"]["input_sha256"] = legit["input_sha256"]
+        forged["workflow_compliance_receipt"]["receipt_sha256"] = canonical_sha256(
+            {
+                key: value
+                for key, value in forged["workflow_compliance_receipt"].items()
+                if key != "receipt_sha256"
+            }
+        )
+        forged["publication_receipt"] = build_publication_receipt(
+            forged,
+            VerificationContext(
+                forged["input_sha256"],
+                expected_publication_gates(forged),
+                ENGINE_VERSION,
+            ),
+        )
+        forged["result_sha256"] = canonical_sha256(
+            {key: value for key, value in forged.items() if key != "result_sha256"}
+        )
+        with self.assertRaises(InvestmentArtifactError):
+            validate_revenue_forecast(forged)
+        with self.assertRaises(InvestmentArtifactError):
+            adapt_revenue(forged, scope="company", segment_name=None)
+
+
+    def test_unregistered_input_anchor_is_rejected(self) -> None:
+        # RED (R1.2 #1): an artifact whose input anchor was never registered
+        # (bypassing run_forecast's registry write) must be rejected by the
+        # default require_registered_input policy.  Previously ACCEPTED.
+        result = forecast_result()
+        import os
+        import tempfile
+
+        previous = os.environ.get("REVENUE_PUBLICATION_REGISTRY")
+        with tempfile.TemporaryDirectory() as directory:
+            os.environ["REVENUE_PUBLICATION_REGISTRY"] = directory
+            try:
+                with self.assertRaisesRegex(InvestmentArtifactError, "registered"):
+                    adapt_revenue(result, scope="company", segment_name=None)
+            finally:
+                if previous is None:
+                    os.environ.pop("REVENUE_PUBLICATION_REGISTRY", None)
+                else:
+                    os.environ["REVENUE_PUBLICATION_REGISTRY"] = previous
+
+    def test_unregistered_anchor_opt_out_is_explicit_and_traced(self) -> None:
+        # The registry check may be explicitly downgraded, but the downgrade
+        # must be recorded in the adapter output (trace, not silent).
+        result = forecast_result()
+        import os
+        import tempfile
+
+        previous = os.environ.get("REVENUE_PUBLICATION_REGISTRY")
+        with tempfile.TemporaryDirectory() as directory:
+            os.environ["REVENUE_PUBLICATION_REGISTRY"] = directory
+            try:
+                adapter = adapt_revenue(
+                    result,
+                    scope="company",
+                    segment_name=None,
+                    require_registered_input=False,
+                )
+            finally:
+                if previous is None:
+                    os.environ.pop("REVENUE_PUBLICATION_REGISTRY", None)
+                else:
+                    os.environ["REVENUE_PUBLICATION_REGISTRY"] = previous
+        self.assertEqual(adapter["registered_input_verification"], "bypassed")
+
+
+    def test_unattested_artifact_is_rejected_by_default(self) -> None:
+        # RED (R2.1): an unattested formal artifact (no host signer at publish
+        # time) must be rejected by the default require_attestation policy.
+        result = copy.deepcopy(forecast_result())
+        receipt = result["publication_receipt"]
+        receipt["attestation_status"] = "unattested"
+        receipt["receipt_sha256"] = canonical_sha256(
+            {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+        )
+        result["result_sha256"] = canonical_sha256(
+            {key: value for key, value in result.items() if key != "result_sha256"}
+        )
+        with self.assertRaisesRegex(InvestmentArtifactError, "unattested"):
+            adapt_revenue(result, scope="company", segment_name=None)
+
+    def test_unattested_opt_out_is_explicit_and_traced(self) -> None:
+        # The attestation requirement may be explicitly downgraded, but the
+        # downgrade must be recorded in the adapter output (trace, not silent).
+        result = copy.deepcopy(forecast_result())
+        receipt = result["publication_receipt"]
+        receipt["attestation_status"] = "unattested"
+        receipt["receipt_sha256"] = canonical_sha256(
+            {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+        )
+        result["result_sha256"] = canonical_sha256(
+            {key: value for key, value in result.items() if key != "result_sha256"}
+        )
+        adapter = adapt_revenue(
+            result,
+            scope="company",
+            segment_name=None,
+            require_attestation=False,
+        )
+        self.assertEqual(adapter["attestation_verification"], "unattested_bypassed")
 
 
 if __name__ == "__main__":

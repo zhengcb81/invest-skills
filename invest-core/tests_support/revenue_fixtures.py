@@ -30,7 +30,7 @@ if str(_REVENUE_FORECAST / "scripts") not in sys.path:
 if str(_REVENUE_FORECAST / "tests") not in sys.path:
     sys.path.insert(0, str(_REVENUE_FORECAST / "tests"))
 
-from revenue_core import run_forecast  # noqa: E402
+from revenue_core import ENGINE_VERSION, run_forecast  # noqa: E402
 from test_management_targets import add_target  # noqa: E402
 from test_recognition_bridge import forecast_document  # noqa: E402
 
@@ -291,7 +291,7 @@ def _build_legacy_fixture() -> dict:
 
     result = run_forecast(forecast_document())
     result["schema_version"] = "3.4"
-    result["engine_version"] = "3.10.0"
+    result["engine_version"] = ENGINE_VERSION
     result["publication_receipt"] = build_publication_receipt(
         result,
         VerificationContext(
