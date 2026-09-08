@@ -1,4 +1,11 @@
-"""Hash-check or atomically synchronize canonical invest skills to installations."""
+"""Hash-check or atomically synchronize canonical invest skills to installations.
+
+Owner requirement (2026-09-08): every installed skill must equal its Projects
+git repo, in all three agent roots (``~/.agents``, ``~/.claude``,
+``~/.codex``).  A component missing inside an existing root is drift, which is
+how the 补齐 requirement is enforced; junction installs are verified through
+the link and never replaced.
+"""
 
 from __future__ import annotations
 
@@ -24,6 +31,29 @@ def _files(root: Path) -> list[Path]:
         path for path in root.rglob("*")
         if path.is_file() and not (set(path.parts) & IGNORED_PARTS) and path.suffix not in {".pyc", ".pyo"}
     )
+
+
+def _is_alias(path: Path) -> bool:
+    """True for junctions/symlinks (``Path.is_symlink`` misses junctions).
+
+    ``~/.claude/skills/<component>`` are junctions into ``~/.agents/skills``;
+    an atomic replace must never delete the link's target (that is how the
+    stale ``.invest-core-backup-8400`` leftover was created).
+    """
+    try:
+        return os.path.normcase(str(path.resolve())) != os.path.normcase(str(path.absolute()))
+    except OSError:
+        return False
+
+
+def _remove_path(path: Path) -> None:
+    """Remove a file, a real directory, or a junction/symlink itself."""
+    if _is_alias(path):
+        os.rmdir(path)
+    elif path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink(missing_ok=True)
 
 
 def component_manifest(root: Path, component: str) -> dict[str, str]:
@@ -62,6 +92,9 @@ def installation_diff(canonical: Path, destination: Path) -> list[str]:
 def _sync_component(canonical: Path, destination: Path, component: str) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     target = destination / component
+    if target.exists() and _is_alias(target):
+        print(f"  ALIAS {target} -> {target.resolve()} (verified via link, not replaced)")
+        return
     with tempfile.TemporaryDirectory(prefix=f".{component}-stage-", dir=destination) as directory:
         staged = Path(directory) / component
         shutil.copytree(
@@ -70,7 +103,7 @@ def _sync_component(canonical: Path, destination: Path, component: str) -> None:
         )
         backup = destination / f".{component}-backup-{os.getpid()}"
         if backup.exists():
-            shutil.rmtree(backup)
+            _remove_path(backup)
         if target.exists():
             os.replace(target, backup)
         try:
@@ -80,7 +113,7 @@ def _sync_component(canonical: Path, destination: Path, component: str) -> None:
                 os.replace(backup, target)
             raise
         if backup.exists():
-            shutil.rmtree(backup)
+            _remove_path(backup)
 
 
 def main() -> int:
@@ -95,7 +128,11 @@ def main() -> int:
     if args.print_manifest:
         print(json.dumps(suite_manifest(canonical), indent=2, sort_keys=True))
         return 0
-    destinations = args.destination or [Path.home() / ".agents" / "skills", Path.home() / ".claude" / "skills"]
+    destinations = args.destination or [
+        Path.home() / ".agents" / "skills",
+        Path.home() / ".claude" / "skills",
+        Path.home() / ".codex" / "skills",
+    ]
     if args.apply:
         for destination in destinations:
             for component in COMPONENTS:
