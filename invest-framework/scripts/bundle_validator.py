@@ -262,10 +262,11 @@ def validate_bundle_artifact(artifact: dict[str, Any]) -> None:
         _require(canonical_sha256(manifest_snapshot) == expected_summary["manifest_sha256"], "bundle manifest snapshot hash mismatch")
     frozen_forecast = data.get("frozen_revenue_forecast")
     if frozen_forecast is not None:
-        validate_revenue_forecast(frozen_forecast)
         if expected_data_schema == BUNDLE_DATA_SCHEMA_VERSION:
             _require(artifact["revenue_forecast_ref"] == revenue_reference(frozen_forecast), "bundle frozen forecast reference mismatch")
         else:
+            # Legacy lineage has no reference-owner call; retain its validation.
+            validate_revenue_forecast(frozen_forecast)
             _require(artifact["revenue_forecast_ref"] is not None and frozen_forecast["result_sha256"] == artifact["revenue_forecast_ref"]["result_sha256"], "bundle frozen forecast lineage mismatch")
     supplemental_ids = data.get("supplemental_artifact_ids")
     _require(isinstance(supplemental_ids, list) and len(supplemental_ids) == len(set(supplemental_ids)), "invalid supplemental_artifact_ids")
@@ -286,8 +287,8 @@ def run_bundle(
         _require(isinstance(manifest_snapshot, dict), "manifest_sha256 requires manifest_snapshot")
         _require(canonical_sha256(manifest_snapshot) == plan["manifest_sha256"], "manifest_snapshot hash mismatch")
     if frozen_revenue_forecast is not None:
-        validate_revenue_forecast(frozen_revenue_forecast)
-        _require(bool(revenue_refs) and revenue_reference(frozen_revenue_forecast) == revenue_refs[0], "frozen forecast reference mismatch")
+        frozen_reference = revenue_reference(frozen_revenue_forecast)
+        _require(bool(revenue_refs) and frozen_reference == revenue_refs[0], "frozen forecast reference mismatch")
     supplemental_ids = list(supplemental_artifact_ids or [])
     _require(len(supplemental_ids) == len(set(supplemental_ids)), "supplemental artifact IDs must be unique")
     _require(set(supplemental_ids) <= {item["artifact_id"] for item in artifacts}, "unknown supplemental artifact ID")

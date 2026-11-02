@@ -391,7 +391,7 @@
     }
   },
   "schema_version": "3.7",
-  "engine_version": "4.0.0",
+  "engine_version": "4.3.0",
   "research_coverage": {
     "dimensions": [
       {
@@ -1195,6 +1195,7 @@
   ],
   "theme_analysis": null,
   "confidence": {
+    "calculation_version": "source-evidence/2",
     "score": 58.0,
     "rating": "medium",
     "components": {
@@ -1223,6 +1224,7 @@
       "No immutable historical backtest record",
       "One or more segments use a direct fallback model",
       "Research coverage contains 2 material data gap(s)",
+      "Confidence is an evidence/workflow score, not a calibrated forecast probability",
       "Growth driver br20x_ramp is not triangulated across two evidence types and sources",
       "Growth driver import_substitution_tam is not triangulated across two evidence types and sources",
       "Growth driver customer_expansion is not triangulated across two evidence types and sources",
@@ -3638,19 +3640,19 @@
   "publication_receipt": {
     "receipt_schema_version": "1.0",
     "schema_version": "3.7",
-    "engine_version": "4.0.0",
+    "engine_version": "4.3.0",
     "validated_input_sha256": "0e1cc8d4c73de8587a1caf5240a7945451a94fcba3e9ad88b61148b461bbee4d",
-    "validated_payload_sha256": "9db14abc31dcd940ce678131b0200dcbdc1e96472cd9fd8db90ba2fa018c5746",
-    "validator_version": "4.0.0",
+    "validated_payload_sha256": "04afb0d9c31ccd81f2fba5494496de292ff8a0cef12293bb2f03bc343a8531fd",
+    "validator_version": "4.3.0",
     "gate_ids": [
       "output_recomputation",
       "sensitivity_shock_recomputation"
     ],
-    "verification_context_sha256": "1001572a8858a0a6ad3de94a0b43be52927949c2f06a681ca233b478449cf8aa",
+    "verification_context_sha256": "6ec3334a3fafa8e42fa32b45a5d3ab63928e04374ed9699eeeb3a7a2817f46bc",
     "formal_output_mode": "formal",
     "freeform_override_allowed": false,
-    "attestation_status": "host_signed",
-    "receipt_sha256": "a09a0c74cd459b88e3382ba90621337b2cb35e0fc82c25462cac6a8ee738d134"
+    "attestation_status": "unattested",
+    "receipt_sha256": "73ba33d23cc21326f3425d01b85f85071e1e21204fa8a6665a09f894168fc276"
   },
-  "result_sha256": "0c8c3f6f9dbcae8b238c0360aee7ff512a8e8d668c2bd6447052704204a9fdeb"
+  "result_sha256": "cb0d03fd47d0bd21fddc7c798f9292a954437f253943bdb7f937f382fde35ede"
 }

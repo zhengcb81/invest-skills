@@ -77,3 +77,48 @@ harness 每一步的失败信息明确标注步骤名 + 期望/实际；输入�
 - 预测重新生成后：核对新预测 → `--update-golden` 刷新 → 提交 golden（与新预测一并版本化）。
 - invest-skills 有意变更后：审查 diff → `--update-golden` 刷新。
 - 任何"未预期"的失败：视为回归信号，先查原因，不直接更新 golden。
+
+
+## 2026-11-02: current offline fixture and execution contract
+
+The frozen fixture is a genuine canonical `run_forecast` emission (schema3.7,
+engine4.3.0), not an old result with a changed version tag. It truthfully has
+`attestation_status=unattested`; a signature or global index registration is
+not permission to use a strongly validated result. Claimed signatures still
+must verify. The embedded input and all355 shared numeric leaves are unchanged
+from the prior artifact. All12 golden revenue/profit/valuation/SOTP numbers and
+module counts are exactly unchanged. Only current algorithm diagnostics and
+bound hashes/version/attestation metadata migrated.
+
+To explicitly regenerate a candidate (never executed automatically by tests):
+
+```shell
+python e2e/generate_biren_fixture.py --output /owned/temporary/candidate.json
+python e2e/run_biren_invest_e2e.py --forecast /owned/temporary/candidate.json --expected-dir /owned/temporary/expected --runs-dir /owned/temporary
+```
+
+The generator uses only the frozen embedded input, disables dotenv and signer,
+uses an isolated temporary index, and blocks networking. Review numerical and
+module differences before replacing a frozen artifact. `--update-golden` may
+refresh technical metadata, but when an existing golden is present it refuses
+to absorb economic or module drift. Intentional research-assumption changes
+must be recorded and compared explicitly; the flag is not a way to hide them.
+
+The normal CI entry remains `python e2e/run_biren_invest_e2e.py`. Every invocation
+creates one fresh owned temporary directory, uses a private test index, runs
+the actual orchestrator CLI twice, and actually executes steps3–8 on both
+emitted runs. The fresh public execution read checks each intermediate file,
+all state transitions, arithmetic, lineage and report/receipt agreement; the
+golden separately checks fixed economics and technical hashes. Networking is
+blocked in the parent and child. `--runs-dir` selects an existing parent only;
+`--keep-runs` retains just the newly created directory for investigation.
+Otherwise this invocation's directory is removed even on failure. Historical
+`e2e/.runs` is no longer read, reused, enumerated, or cleaned by this entry.
+The earlier sections describing monotonic shared `.runs` history are historical.
+
+Regression tests live in the existing CI-covered `invest-framework/tests` and
+`invest-core/tests`: real CLI rejects wrong version, forged signed status,
+currency/unit/revenue corruption; changed intermediate financial data fails;
+a live-phase sentinel prevents the phase checks from becoming dead code again;
+optional-index outage does not deny a valid result. Exact source/quote SHA,
+nonempty evidence, monetary units and public independent validation remain.

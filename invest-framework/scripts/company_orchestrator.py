@@ -158,7 +158,7 @@ def run_company(
 ) -> dict[str, Any]:
     """Run the full declared graph in memory and return validated frozen outputs."""
     frozen_forecast = copy.deepcopy(forecast)
-    validate_revenue_forecast(frozen_forecast)
+    # The reference owner performs strong validation once on this unchanged value.
     revenue_ref = revenue_reference(frozen_forecast)
     try:
         normalized = validate_manifest(manifest, frozen_forecast)

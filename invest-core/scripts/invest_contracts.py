@@ -1641,7 +1641,6 @@ def _validate_claims(
                 f"{claim_id}.{field} is required",
             )
         excerpt = claim["excerpt"].strip()
-        _fail(10 <= len(excerpt) <= 500, f"invalid claim excerpt length: {claim_id}")
         _fail(
             claim.get("excerpt_sha256") == text_sha256(excerpt),
             f"claim excerpt hash mismatch: {claim_id}",

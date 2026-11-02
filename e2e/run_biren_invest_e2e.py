@@ -23,6 +23,8 @@ import math
 import os
 import subprocess
 import sys
+import shutil
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -32,7 +34,6 @@ REVENUE_FORECAST = Path(os.environ.get("REVENUE_FORECAST_DIR") or str(REPO.paren
 DEFAULT_FORECAST = HERE / 'fixtures' / 'biren_forecast.json'
 DEFAULT_MANIFEST = HERE / "biren_manifest.json"
 EXPECTED_DIR = HERE / "expected"
-RUNS_DIR = HERE / ".runs"
 
 # deterministic orchestration inputs: only these files matter
 # (orchestrator is pure-local, no network/clock/random)
@@ -86,15 +87,7 @@ def collect_step_1_forecast_valid(forecast: dict, forecast_path: Path) -> None:
         validate_published_forecast(forecast, forecast["input_document"])
     except Exception as exc:
         raise AssertionError(f"STEP 1 FAILED: strong forecast validation rejected the artifact: {exc}")
-    # R1.2: register the fixture's anchor so require_registered_input consumers
-    # pass in CI (the registry is a runtime artifact, not part of the repo).
-    try:
-        import publication_registry
-
-        publication_registry.register_publication(forecast, note="biren invest e2e fixture")
-    except Exception as exc:
-        raise AssertionError(f"STEP 1 FAILED: publication registry unavailable: {exc}")
-    _report("  ok   STEP 1: input forecast is a strong-validated formal artifact (registered)")
+    _report("  ok   STEP 1: input forecast is a strong-validated formal artifact (index independent)")
 
 
 def collect_step_2_manifest_contract(manifest: dict, forecast: dict) -> None:
@@ -114,12 +107,15 @@ def collect_step_2_manifest_contract(manifest: dict, forecast: dict) -> None:
 def run_orchestrator(manifest_path: Path, forecast_path: Path, out_dir: Path) -> None:
     env = dict(os.environ)
     env.setdefault("REVENUE_FORECAST_DIR", str(REVENUE_FORECAST))
+    env["PYTHON_DOTENV_DISABLED"] = "1"
+    env.pop("REVENUE_ATTESTATION_PROVIDER", None)
     print(f"[e2e-diag] REVENUE_FORECAST_DIR={env.get('REVENUE_FORECAST_DIR')}", flush=True)
     print(f"[e2e-diag] REVENUE_FORECAST={REVENUE_FORECAST} exists={REVENUE_FORECAST.is_dir()}", flush=True)
     print(f"[e2e-diag] INVEST_FRAMEWORK={INVEST_FRAMEWORK} exists={INVEST_FRAMEWORK.is_dir()}", flush=True)
     print(f"[e2e-diag] cwd will be={INVEST_FRAMEWORK}", flush=True)
     proc = subprocess.run(
-        [sys.executable, str(INVEST_FRAMEWORK / "scripts" / "company_orchestrator.py"),
+        [sys.executable, "-B", "-X", "utf8", str(HERE / "offline_cli.py"),
+         str(INVEST_FRAMEWORK / "scripts" / "company_orchestrator.py"),
          str(manifest_path), str(forecast_path), "--output-dir", str(out_dir)],
         cwd=str(INVEST_FRAMEWORK), env=env, capture_output=True, text=True,
         encoding="utf-8", errors="replace", timeout=600,
@@ -131,7 +127,7 @@ def run_orchestrator(manifest_path: Path, forecast_path: Path, out_dir: Path) ->
         )
 
 
-def collect_steps_3_to_8(out_dir: Path, expected: dict, keep_runs: bool) -> None:
+def collect_steps_3_to_8(out_dir: Path, expected: dict) -> None:
     c = StepCollector()
     fin = json.loads((out_dir / "segment_001_financials.json").read_text(encoding="utf-8"))
     val = json.loads((out_dir / "segment_001_valuation.json").read_text(encoding="utf-8"))
@@ -140,9 +136,24 @@ def collect_steps_3_to_8(out_dir: Path, expected: dict, keep_runs: bool) -> None
     receipt = json.loads((out_dir / "receipt.json").read_text(encoding="utf-8"))
     report = (out_dir / "report.md").read_text(encoding="utf-8")
 
+    # A fresh public read verifies every emitted member and state transition.
+    # This catches changed intermediate files, even when the bundle is intact.
+    from company_orchestrator import validate_execution
+    try:
+        validate_execution({
+            "normalized_manifest": json.loads((out_dir / "manifest.snapshot.json").read_text(encoding="utf-8")),
+            "frozen_revenue_forecast": json.loads((out_dir / "revenue_forecast.snapshot.json").read_text(encoding="utf-8")),
+            "financials": [fin], "valuations": [val], "sotp": sotp,
+            "supplementals": [], "bundle": bundle, "report_markdown": report,
+            "output_files": receipt["output_files"], "receipt": receipt,
+        })
+    except Exception as exc:
+        fail("3", f"emitted execution failed its public validation: {exc}")
+    c.check("3", sorted(path.name for path in out_dir.iterdir()) == sorted(receipt["output_files"]),
+            "emitted file inventory differs from the execution receipt")
+
     # Step 4: financials compliance + terminal net income
-    fin_rec = fin.get("compliance_receipt_sha256") or (
-        (fin.get("data") or {}).get("compliance_receipt_sha256"))
+    fin_rec = (fin.get("compliance_receipt") or {}).get("receipt_sha256")
     c.check("4a", bool(fin_rec), "financials compliance receipt missing")
     for scen, exp in expected["financials_terminal_net_income"].items():
         actual = fin["data"]["annual_financials"][scen]["2030"].get("net_income")
@@ -178,7 +189,8 @@ def collect_steps_3_to_8(out_dir: Path, expected: dict, keep_runs: bool) -> None
     # Step 8: receipt + report
     c.check("8a", receipt.get("status") == "pass", f"receipt status {receipt.get('status')}")
     c.check("8b", receipt.get("freeform_formal_output_allowed") is False, "freeform must be false")
-    c.check("8c", receipt.get("formal_report_sha256") == sha256_of(out_dir / "report.md"),
+    from invest_contracts import text_sha256
+    c.check("8c", receipt.get("formal_report_sha256") == text_sha256(report),
             "receipt formal_report_sha256 must equal report.md hash")
     c.check("8d", expected["report_contains_drivers"] and "未来收入主要驱动力" in report,
             "report missing revenue driver section")
@@ -192,160 +204,133 @@ def collect_steps_3_to_8(out_dir: Path, expected: dict, keep_runs: bool) -> None
     _report("  ok   STEPS 4-8: financials / valuation / SOTP / bundle / receipt / report all green")
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--forecast", type=Path, default=DEFAULT_FORECAST)
-    parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
-    parser.add_argument("--update-golden", action="store_true",
-                        help="regenerate the golden expected result after a deliberate change")
-    parser.add_argument("--keep-runs", action="store_true", help="do not clean run dirs")
-    args = parser.parse_args()
+ECONOMIC_KEYS = (
+    "financials_terminal_net_income", "valuation_equity", "sotp_equity", "revenue_effective_2030",
+)
 
-    forecast_path = args.forecast.resolve()
-    manifest_path = args.manifest.resolve()
-    if not forecast_path.is_file():
-        print(f"ERROR: forecast not found: {forecast_path}", file=sys.stderr)
-        return 2
-    if not manifest_path.is_file():
-        print(f"ERROR: manifest not found: {manifest_path}", file=sys.stderr)
-        return 2
 
-    forecast = json.loads(forecast_path.read_text(encoding="utf-8"))
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    # Golden is keyed on the ENGINE's canonical input hash (semantic): cosmetic
-    # reformatting of the file must not invalidate the golden, while any real
-    # content change produces a new key and an explicit "input changed" failure.
-    semantic_sha = forecast.get("input_sha256")
-    if not isinstance(semantic_sha, str) or len(semantic_sha) != 64:
-        print("ERROR: forecast.input_sha256 missing/invalid", file=sys.stderr)
-        return 2
-    golden_path = EXPECTED_DIR / f"expected-{semantic_sha[:12]}.json"
-    input_sha = semantic_sha
+def economic_differences(actual: dict, expected: dict) -> list[str]:
+    differences = []
+    if actual.get("module_counts") != expected.get("module_counts"):
+        differences.append("module_counts changed")
+    for key in ECONOMIC_KEYS:
+        for scenario in ("low", "base", "high"):
+            a = (actual.get(key) or {}).get(scenario)
+            g = (expected.get(key) or {}).get(scenario)
+            if not (type(a) in (int, float) and type(g) in (int, float)
+                    and math.isclose(a, g, rel_tol=1e-9, abs_tol=1e-6)):
+                differences.append(f"{key}[{scenario}]: expected {g} got {a}")
+    return differences
 
-    try:
-        collect_step_1_forecast_valid(forecast, forecast_path)
-        collect_step_2_manifest_contract(manifest, forecast)
-    except AssertionError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 2
 
-    if not golden_path.is_file() and not args.update_golden:
-        print(f"ERROR: no golden for input {input_sha[:12]} (input changed since the last run? "
-              f"run --update-golden after reviewing the new forecast)", file=sys.stderr)
-        return 2
-    if args.update_golden:
-        # still need a reference run to record values from
-        pass
-
-    # --- run the orchestrator twice in fresh temp dirs (determinism check) ---
-    run_root = RUNS_DIR / input_sha[:12]
-    run_root.mkdir(parents=True, exist_ok=True)
-    # monotonically increasing run numbers: never reuse a previous run dir
-    existing = [int(p.name.split("-")[1]) for p in run_root.iterdir()
-                if p.is_dir() and p.name.startswith("run-")]
-    seq = max(existing, default=0)
-    hashes_run: list[dict] = []
+def check_runs(args, forecast: dict, forecast_path: Path, manifest_path: Path,
+               golden_path: Path, run_root: Path) -> int:
+    hashes_run = []
     for attempt in (1, 2):
-        out_dir = run_root / f"run-{seq + attempt}"
-        try:
-            run_orchestrator(manifest_path, forecast_path, out_dir)
-        except AssertionError as exc:
-            print(f"ERROR: {exc}", file=sys.stderr)
-            return 1
-        hashes_run.append({
-            "bundle": sha256_of(out_dir / "bundle.json"),
-            "report": sha256_of(out_dir / "report.md"),
-            "receipt": sha256_of(out_dir / "receipt.json"),
-        })
+        out_dir = run_root / f"run-{attempt}"
+        run_orchestrator(manifest_path, forecast_path, out_dir)
+        hashes_run.append({name: sha256_of(out_dir / filename) for name, filename in (
+            ("bundle", "bundle.json"), ("report", "report.md"), ("receipt", "receipt.json"),
+        )})
         _report(f"  run {attempt} ok: bundle={hashes_run[-1]['bundle'][:12]} "
                 f"report={hashes_run[-1]['report'][:12]}")
-
-    _report("STEP 9: deterministic double-run")
     if hashes_run[0] != hashes_run[1]:
-        print("ERROR: STEP 9 FAILED: two identical inputs produced different outputs "
-              "(non-deterministic pipeline)", file=sys.stderr)
-        return 1
+        fail("9", "two identical inputs produced different outputs")
     _report("  ok   STEP 9: outputs byte-identical across two runs")
-
-    # --- golden comparison (use run 1) ---
-    out_dir = run_root / f"run-{seq + 1}"
-    # recompute the golden expectations keyed on this run's outputs
-    fin = json.loads((out_dir / "segment_001_financials.json").read_text(encoding="utf-8"))
-    val = json.loads((out_dir / "segment_001_valuation.json").read_text(encoding="utf-8"))
-    sotp = json.loads((out_dir / "sotp.json").read_text(encoding="utf-8"))
-    bundle = json.loads((out_dir / "bundle.json").read_text(encoding="utf-8"))
-    receipt = json.loads((out_dir / "receipt.json").read_text(encoding="utf-8"))
-    report_text = (out_dir / "report.md").read_text(encoding="utf-8")
-    eff = {s: forecast["segments"][0]["scenarios"][s]["effective_revenue"]["2030"]
-           for s in ("low", "base", "high")}
-    actual_expected = {
-        "input_forecast_sha256": input_sha,
-        "input_forecast_result_sha256": forecast.get("result_sha256"),
-        "input_forecast_input_sha256": forecast.get("input_sha256"),
+    out_dir = run_root / "run-1"
+    def read(name):
+        return json.loads((out_dir / name).read_text(encoding="utf-8"))
+    fin, val, sotp, bundle, receipt = map(read, (
+        "segment_001_financials.json", "segment_001_valuation.json", "sotp.json", "bundle.json", "receipt.json",
+    ))
+    report = (out_dir / "report.md").read_text(encoding="utf-8")
+    actual = {
+        "input_forecast_sha256": forecast["input_sha256"],
+        "input_forecast_input_sha256": forecast["input_sha256"],
+        "input_forecast_result_sha256": forecast["result_sha256"],
         "module_counts": bundle["data"]["module_counts"],
         "bundle_sha256": hashes_run[0]["bundle"],
-        "report_sha256": hashes_run[0]["report"],
-        "receipt_sha256": hashes_run[0]["receipt"],
+        "report_sha256": hashes_run[0]["report"], "receipt_sha256": hashes_run[0]["receipt"],
         "receipt_status": receipt.get("status"),
         "receipt_freeform": receipt.get("freeform_formal_output_allowed"),
         "receipt_formal_report_sha256": receipt.get("formal_report_sha256"),
-        "revenue_effective_2030": eff,
-        "financials_terminal_net_income": {
-            s: fin["data"]["annual_financials"][s]["2030"].get("net_income") for s in ("low", "base", "high")},
-        "valuation_equity": {
-            s: val["data"]["scenario_valuations"][s]["methods"]["ps"].get("value_before_adjustments_current")
-            for s in ("low", "base", "high")},
-        "sotp_equity": {
-            s: sotp["data"]["scenario_sotp"][s].get("sotp_equity_value_current") for s in ("low", "base", "high")},
-        "report_contains_drivers": "未来收入主要驱动力" in report_text,
-        "report_contains_value_table": "当前价值" in report_text,
+        "revenue_effective_2030": {s: forecast["segments"][0]["scenarios"][s]["effective_revenue"]["2030"] for s in ("low", "base", "high")},
+        "financials_terminal_net_income": {s: fin["data"]["annual_financials"][s]["2030"]["net_income"] for s in ("low", "base", "high")},
+        "valuation_equity": {s: val["data"]["scenario_valuations"][s]["methods"]["ps"]["value_before_adjustments_current"] for s in ("low", "base", "high")},
+        "sotp_equity": {s: sotp["data"]["scenario_sotp"][s]["sotp_equity_value_current"] for s in ("low", "base", "high")},
+        "report_contains_drivers": "未来收入主要驱动力" in report,
+        "report_contains_value_table": "当前价值" in report,
     }
-    for repo, p in (("invest_skills", INVEST_FRAMEWORK.parent), ("revenue_forecast", REVENUE_FORECAST)):
-        try:
-            actual_expected[f"{repo}_head"] = subprocess.run(
-                ["git", "-C", str(p), "rev-parse", "HEAD"], capture_output=True, text=True
-            ).stdout.strip()
-        except Exception:
-            actual_expected[f"{repo}_head"] = None
-
+    for repo, path in (("invest_skills", REPO), ("revenue_forecast", REVENUE_FORECAST)):
+        actual[f"{repo}_head"] = subprocess.run(
+            ["git", "-C", str(path), "rev-parse", "HEAD"], capture_output=True, text=True,
+        ).stdout.strip() or None
+    golden = json.loads(golden_path.read_text(encoding="utf-8")) if golden_path.is_file() else None
+    if golden is not None:
+        differences = economic_differences(actual, golden)
+        if differences:
+            fail("10", "economic drift (also blocks --update-golden): " + "; ".join(differences))
+    # These checks previously existed but were never invoked by main.
+    for attempt in (1, 2):
+        collect_steps_3_to_8(run_root / f"run-{attempt}", actual if args.update_golden else golden)
     if args.update_golden:
-        EXPECTED_DIR.mkdir(parents=True, exist_ok=True)
-        golden_path.write_text(json.dumps(actual_expected, ensure_ascii=False, indent=2), encoding="utf-8")
-        _report(f"golden updated: {golden_path.name}")
+        golden_path.parent.mkdir(parents=True, exist_ok=True)
+        golden_path.write_text(json.dumps(actual, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        _report(f"golden metadata updated with unchanged economic values: {golden_path.name}")
     else:
-        golden = json.loads(golden_path.read_text(encoding="utf-8"))
-        diffs = []
-        for key in ("bundle_sha256", "report_sha256", "receipt_sha256", "receipt_status",
-                    "receipt_freeform", "receipt_formal_report_sha256", "module_counts"):
-            if actual_expected.get(key) != golden.get(key):
-                diffs.append(f"{key}: expected {golden.get(key)} got {actual_expected.get(key)}")
-        for key in ("financials_terminal_net_income", "valuation_equity", "sotp_equity", "revenue_effective_2030"):
-            for scen in ("low", "base", "high"):
-                a = (actual_expected.get(key) or {}).get(scen)
-                g = (golden.get(key) or {}).get(scen)
-                if not (isinstance(a, (int, float)) and isinstance(g, (int, float))
-                        and math.isclose(a, g, rel_tol=1e-9, abs_tol=1e-6)):
-                    diffs.append(f"{key}[{scen}]: expected {g} got {a}")
-        if diffs:
-            print("ERROR: STEP 10 FAILED — golden mismatch (input/behavior drift):", file=sys.stderr)
-            for d in diffs:
-                print(f"  {d}", file=sys.stderr)
-            print("If this drift is intentional, review it and run --update-golden.", file=sys.stderr)
-            return 1
+        keys = ("input_forecast_input_sha256", "input_forecast_result_sha256", "bundle_sha256", "report_sha256", "receipt_sha256", "receipt_status", "receipt_freeform", "receipt_formal_report_sha256", "module_counts", "report_contains_drivers", "report_contains_value_table")
+        differences = [f"{key}: expected {golden.get(key)} got {actual.get(key)}" for key in keys if actual.get(key) != golden.get(key)]
+        if differences:
+            fail("10", "golden mismatch: " + "; ".join(differences))
         _report("  ok   STEP 10: golden comparison identical")
-
-    _report(f"E2E PASS: forecast={input_sha[:12]} invest_head={actual_expected['invest_skills_head'][:8]}")
-    if not args.keep_runs:
-        # keep the latest run, clean older ones
-        runs = sorted(run_root.glob("run-*"))
-        for old in runs[:-2]:
-            try:
-                for f in old.iterdir():
-                    f.unlink()
-                old.rmdir()
-            except OSError:
-                pass
+    _report(f"E2E PASS: forecast={forecast['input_sha256'][:12]} invest_head={actual['invest_skills_head']}")
     return 0
+
+
+def main() -> int:
+    from offline_cli import install_offline_guard
+    install_offline_guard()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--forecast", type=Path, default=DEFAULT_FORECAST)
+    parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
+    parser.add_argument("--expected-dir", type=Path, default=EXPECTED_DIR)
+    parser.add_argument("--runs-dir", type=Path, help="existing parent for one fresh owned temporary tree")
+    parser.add_argument("--update-golden", action="store_true", help="refresh technical metadata only if existing economic values are unchanged")
+    parser.add_argument("--keep-runs", action="store_true", help="retain only this invocation's fresh temporary tree")
+    args = parser.parse_args()
+    forecast_path, manifest_path = args.forecast.resolve(), args.manifest.resolve()
+    try:
+        forecast = json.loads(forecast_path.read_text(encoding="utf-8"))
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        collect_step_1_forecast_valid(forecast, forecast_path)
+        collect_step_2_manifest_contract(manifest, forecast)
+        golden_path = args.expected_dir.resolve() / f"expected-{forecast['input_sha256'][:12]}.json"
+        if not golden_path.is_file() and not args.update_golden:
+            raise ValueError(f"no golden for input {forecast['input_sha256'][:12]}")
+        if args.runs_dir is not None and not args.runs_dir.is_dir():
+            raise ValueError("--runs-dir must be an existing parent directory")
+    except (AssertionError, OSError, ValueError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    run_root = Path(tempfile.mkdtemp(prefix="invest-e2e-", dir=args.runs_dir))
+    previous_registry = os.environ.get("REVENUE_PUBLICATION_REGISTRY")
+    os.environ["REVENUE_PUBLICATION_REGISTRY"] = str(run_root / "registry")
+    _report(f"owned runs: {run_root}")
+    try:
+        return check_runs(args, forecast, forecast_path, manifest_path, golden_path, run_root)
+    except (AssertionError, OSError, ValueError, KeyError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        if previous_registry is None:
+            os.environ.pop("REVENUE_PUBLICATION_REGISTRY", None)
+        else:
+            os.environ["REVENUE_PUBLICATION_REGISTRY"] = previous_registry
+        if args.keep_runs:
+            _report(f"kept owned runs: {run_root}")
+        else:
+            shutil.rmtree(run_root)
+            _report(f"owned runs removed: {not run_root.exists()}")
 
 
 if __name__ == "__main__":
