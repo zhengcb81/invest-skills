@@ -31,7 +31,7 @@ if str(_REVENUE_FORECAST / "scripts") not in sys.path:
 if str(_REVENUE_FORECAST / "tests") not in sys.path:
     sys.path.insert(0, str(_REVENUE_FORECAST / "tests"))
 
-from revenue_core import ENGINE_VERSION, run_forecast  # noqa: E402
+from revenue_core import run_forecast  # noqa: E402
 from test_management_targets import add_target  # noqa: E402
 from test_recognition_bridge import forecast_document  # noqa: E402
 
@@ -282,7 +282,12 @@ def _make_heterogeneous_forecast() -> dict:
 
 
 def _build_legacy_fixture() -> dict:
-    """Build a schema 3.4 legacy forecast with a receipt that matches the legacy schema."""
+    """Synthetic read-only projection, not output from a historical binary.
+
+    RF's documented emit matrix owns the historical version pair. Never pair
+    a fixed legacy schema with a moving current/provider engine, or mutate a
+    provider-owned cached result while making the test projection.
+    """
     from contracts.evidence import canonical_sha256
     from revenue_publication import (
         VerificationContext,
@@ -290,9 +295,14 @@ def _build_legacy_fixture() -> dict:
         expected_publication_gates,
     )
 
-    result = run_forecast(forecast_document())
-    result["schema_version"] = "3.4"
-    result["engine_version"] = ENGINE_VERSION
+    from schema_compatibility import SCHEMA_EMIT_ENGINES
+
+    legacy_schema = "3.4"
+    documented = SCHEMA_EMIT_ENGINES[legacy_schema]
+    legacy_engine = min(documented, key=lambda version: tuple(map(int, version.split("."))))
+    result = deepcopy(run_forecast(forecast_document()))
+    result["schema_version"] = legacy_schema
+    result["engine_version"] = legacy_engine
     result["publication_receipt"] = build_publication_receipt(
         result,
         VerificationContext(
@@ -300,6 +310,14 @@ def _build_legacy_fixture() -> dict:
             expected_publication_gates(result),
             result["engine_version"],
         ),
+    )
+    # The current receipt formatter names its own engine. This explicitly
+    # synthetic historical projection binds the documented legacy pair instead;
+    # it remains unattested and never claims that an old binary was executed.
+    receipt = result["publication_receipt"]
+    receipt["engine_version"] = legacy_engine
+    receipt["receipt_sha256"] = canonical_sha256(
+        {key: value for key, value in receipt.items() if key != "receipt_sha256"}
     )
     result["result_sha256"] = canonical_sha256(
         {k: v for k, v in result.items() if k != "result_sha256"}
