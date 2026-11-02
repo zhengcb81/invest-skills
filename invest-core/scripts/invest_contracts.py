@@ -215,54 +215,109 @@ def finite_number(value: Any, field: str) -> float:
     return number
 
 
-def _evaluate_formula_node(node: ast.AST, variables: dict[str, float]) -> float:
-    if isinstance(node, ast.Expression):
-        return _evaluate_formula_node(node.body, variables)
-    if (
-        isinstance(node, ast.Constant)
-        and isinstance(node.value, (int, float))
-        and not isinstance(node.value, bool)
-    ):
-        return float(node.value)
-    if isinstance(node, ast.Name):
-        _fail(node.id in variables, f"unsupported formula variable: {node.id}")
-        return variables[node.id]
-    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
-        value = _evaluate_formula_node(node.operand, variables)
-        return value if isinstance(node.op, ast.UAdd) else -value
-    if isinstance(node, ast.BinOp) and isinstance(
-        node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow)
-    ):
-        left = _evaluate_formula_node(node.left, variables)
-        right = _evaluate_formula_node(node.right, variables)
-        if isinstance(node.op, ast.Add):
-            return left + right
-        if isinstance(node.op, ast.Sub):
-            return left - right
-        if isinstance(node.op, ast.Mult):
-            return left * right
-        if isinstance(node.op, ast.Div):
-            _fail(not math.isclose(right, 0.0), "formula division by zero")
-            return left / right
-        _fail(abs(right) <= 10, "formula exponent is outside safe range")
-        return left**right
-    raise InvestmentArtifactError(f"unsupported formula node: {type(node).__name__}")
+class FormulaWorkBudget:
+    """Optional arithmetic work account, shared across calls when requested.
+
+    None means no caller-configured quota. Parsing reserves its actual input
+    scan; the iterative interpreter charges each visited/evaluated node. This
+    is resource accounting, not a formula-length or source-validity permit.
+    """
+
+    def __init__(self, *, max_work_units: int | None = None) -> None:
+        if max_work_units is not None and (
+            type(max_work_units) is not int or max_work_units < 0
+        ):
+            raise InvestmentArtifactError("formula work budget must be a non-negative integer or None")
+        self.max_work_units = max_work_units
+        self.work_units = 0
+
+    def charge(self, units: int) -> None:
+        if type(units) is not int or units < 0:
+            raise InvestmentArtifactError("formula work charge must be a non-negative integer")
+        self.work_units += units
+        if self.max_work_units is not None and self.work_units > self.max_work_units:
+            raise InvestmentArtifactError("formula work budget exceeded")
 
 
-def evaluate_formula(formula: str, inputs: list[float]) -> float:
-    _fail(isinstance(formula, str) and bool(formula.strip()), "formula is required")
-    _fail(len(formula) <= 500, "formula is too long")
+def _evaluate_formula_node(
+    node: ast.AST, variables: dict[str, float], *,
+    work_budget: FormulaWorkBudget | None = None,
+) -> float:
+    """Interpret permitted arithmetic with an explicit stack, never eval()."""
+    account = work_budget if work_budget is not None else FormulaWorkBudget()
+    pending = [(node, False)]
+    values: list[float] = []
+    while pending:
+        current, ready = pending.pop()
+        account.charge(1)
+        if isinstance(current, ast.Expression):
+            pending.append((current.body, False))
+        elif (
+            isinstance(current, ast.Constant)
+            and isinstance(current.value, (int, float))
+            and not isinstance(current.value, bool)
+        ):
+            values.append(finite_number(current.value, "formula literal"))
+        elif isinstance(current, ast.Name):
+            if current.id not in variables:
+                raise InvestmentArtifactError(f"unsupported formula variable: {current.id}")
+            values.append(variables[current.id])
+        elif isinstance(current, ast.UnaryOp) and isinstance(current.op, (ast.UAdd, ast.USub)):
+            if not ready:
+                pending.extend(((current, True), (current.operand, False)))
+            else:
+                value = values.pop()
+                values.append(value if isinstance(current.op, ast.UAdd) else -value)
+        elif isinstance(current, ast.BinOp) and isinstance(
+            current.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow)
+        ):
+            if not ready:
+                pending.extend(((current, True), (current.right, False), (current.left, False)))
+                continue
+            right, left = values.pop(), values.pop()
+            if isinstance(current.op, ast.Add):
+                value = left + right
+            elif isinstance(current.op, ast.Sub):
+                value = left - right
+            elif isinstance(current.op, ast.Mult):
+                value = left * right
+            elif isinstance(current.op, ast.Div):
+                if math.isclose(right, 0.0):
+                    raise InvestmentArtifactError("formula division by zero")
+                value = left / right
+            else:
+                value = left ** right
+            values.append(value)
+        else:
+            raise InvestmentArtifactError(f"unsupported formula node: {type(current).__name__}")
+    return values[0]
+
+
+def evaluate_formula(
+    formula: str, inputs: list[float], *,
+    work_budget: FormulaWorkBudget | None = None,
+) -> float:
+    if not isinstance(formula, str) or not formula.strip():
+        raise InvestmentArtifactError("formula is required")
+    account = work_budget if work_budget is not None else FormulaWorkBudget()
+    account.charge(len(formula))
     try:
         parsed = ast.parse(formula, mode="eval")
     except SyntaxError as exc:
         raise InvestmentArtifactError("formula is not valid arithmetic") from exc
+    except (MemoryError, RecursionError, ValueError) as exc:
+        raise InvestmentArtifactError("formula parser capacity exceeded") from exc
     values = [
         finite_number(value, f"formula.inputs[{index}]")
         for index, value in enumerate(inputs)
     ]
-    result = _evaluate_formula_node(
-        parsed, {f"x{index}": number for index, number in enumerate(values)}
-    )
+    try:
+        result = _evaluate_formula_node(
+            parsed, {f"x{index}": value for index, value in enumerate(values)},
+            work_budget=account,
+        )
+    except ArithmeticError as exc:
+        raise InvestmentArtifactError("formula arithmetic is invalid") from exc
     return finite_number(result, "formula result")
 
 
