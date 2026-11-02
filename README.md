@@ -72,3 +72,5 @@ Use `python tools/sync_installations.py --check` to compare canonical files with
 - Industry family registration is a semantic gate, not a complete accounting template. Material lines and identities still need explicit modeling.
 - The suite does not fabricate current market prices, portfolio weights, ratings, or position sizes.
 - Direct source checking remains a research responsibility; capture receipts prove internal linkage and tamper evidence, not the truth of a live webpage or authenticity of an unsigned model-authored tool-call ID.
+
+Local Git checks are intentionally small: pre-commit checks staged Python syntax and Ruff; pre-push runs Ruff plus a fixed revenue-adapter / three-hop integrity smoke. The existing CI owns the complete test suite and Biren E2E. Git hooks never deploy or overwrite installed skills; use the canonical sync tool explicitly after a completed integration milestone.

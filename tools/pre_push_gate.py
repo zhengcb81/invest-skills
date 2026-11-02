@@ -1,193 +1,108 @@
-"""Pre-push gate for invest-skills (owner requirement 2026-09-08).
+"""Fast local Git checks; full tests/E2E live in CI, deployment is explicit.
 
-The repo had a CI workflow but no local surface, and its `.githooks/pre-commit`
-was never wired (``core.hooksPath`` was unset).  This gate mirrors the CI
-`quality` workflow locally and adds the installed-skill consistency check that
-CI cannot cover (GitHub runners have no install roots):
-
-  1. ruff check .                          (CI "Lint")
-  2. compileall over the ten components
-  3. tools/validate_skills.py              (frontmatter + relative links)
-  4. pytest over the ten components        (CI "Run test suite")
-  5. e2e/run_biren_invest_e2e.py           (CI, when the revenue sibling exists)
-  6. installed-skill consistency: ~/.agents, ~/.claude and ~/.codex must equal
-     this repo; stale/missing copies are auto-synced and re-checked
-  7. UTF-8 BOM scan
-
-Exit non-zero on the first red check.  Push protocol: run this gate, push,
-then self-monitor the GitHub Actions run until green.
-
-Usage: python tools/pre_push_gate.py [--skip-tests] [--skip-e2e]
-       [--skip-install-sync]
+Commit: staged Python syntax + Ruff only. Push: Ruff and one fixed adapter /
+three-hop integrity smoke. Neither operation modifies installed skills.
 """
-
 from __future__ import annotations
 
 import argparse
 import os
+from pathlib import Path
 import subprocess
 import sys
-from pathlib import Path
+import tempfile
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-COMPONENTS = (
-    "invest-core",
-    "invest-framework",
-    "invest-financials",
-    "invest-valuation",
-    "invest-sotp",
-    "invest-moat",
-    "invest-management",
-    "invest-distribution",
-    "invest-compare",
-    "invest-psychology",
+SMOKE = (
+    "invest-core/tests/test_revenue_adapter.py",
+    "invest-core/tests/test_revenue_adapter_gate_simplification.py",
+    "invest-framework/tests/test_forged_cross_repo_chain.py",
 )
-
-
-def _safe_console() -> None:
-    """Windows consoles default to GBK; never let reporting crash the gate."""
-    for stream in (sys.stdout, sys.stderr):
-        reconfigure = getattr(stream, "reconfigure", None)
-        if reconfigure is not None:
-            try:
-                reconfigure(encoding="utf-8", errors="replace")
-            except (ValueError, OSError):
-                pass
 
 
 def _env() -> dict[str, str]:
     env = dict(os.environ)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+    env.pop("REVENUE_ATTESTATION_PROVIDER", None)
     sibling = PROJECT_ROOT.parent / "revenue-forecast"
     if sibling.is_dir():
         env.setdefault("REVENUE_FORECAST_DIR", str(sibling))
     return env
 
 
-def _run(
-    cmd: list[str], label: str, timeout: int = 1800, *, blocking: bool = True
-) -> int:
-    print(f"\n=== {label} ===")
-    proc = subprocess.run(
-        cmd,
-        cwd=str(PROJECT_ROOT),
-        env=_env(),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-    )
-    tail = (proc.stdout or "")[-2500:] + (proc.stderr or "")[-1200:]
-    if proc.returncode != 0:
-        print(tail)
-        if blocking:
-            print(f"FAILED: {label}")
-    else:
-        print("ok")
-    return proc.returncode
+def _run(cmd: list[str], label: str, *, env_overrides: dict[str, str] | None = None) -> int:
+    print(label, flush=True)
+    env = _env()
+    env.update(env_overrides or {})
+    # Disk-backed logs avoid unbounded memory. Log volume is not a veto.
+    with tempfile.TemporaryFile() as log:
+        try:
+            result = subprocess.run(cmd, cwd=PROJECT_ROOT, env=env, stdout=log,
+                                    stderr=subprocess.STDOUT, timeout=120, check=False)
+            code = result.returncode
+        except subprocess.TimeoutExpired:
+            code = 124
+        log.seek(0, 2)
+        log.seek(max(0, log.tell() - 16000))
+        print(log.read().decode("utf-8", "replace"))
+    return code
 
 
-def _no_bom_check() -> int:
-    bad = [
-        str(path.relative_to(PROJECT_ROOT))
-        for path in sorted(PROJECT_ROOT.rglob("*.py"))
-        if path.read_bytes().startswith(b"\xef\xbb\xbf")
-    ]
-    if bad:
-        print("FAILED: UTF-8 BOM python files must be zero:")
-        for name in bad:
-            print(f"  {name}")
-        return 1
-    print("ok")
-    return 0
+def _staged_python() -> list[Path]:
+    result = subprocess.run(["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"],
+                            cwd=PROJECT_ROOT, capture_output=True, check=True)
+    return [PROJECT_ROOT / os.fsdecode(name) for name in result.stdout.split(b"\0")
+            if name.endswith(b".py")]
 
 
-def _install_sync() -> int:
-    tool = PROJECT_ROOT / "tools" / "sync_installations.py"
-    rc = _run(
-        [sys.executable, str(tool)],
-        "installed-skill consistency (check)",
-        blocking=False,
-    )
-    if rc == 0:
+def _staged_bytes(path: Path) -> bytes:
+    relative = path.relative_to(PROJECT_ROOT).as_posix()
+    return subprocess.run(["git", "show", "--no-textconv", f":0:{relative}"],
+                          cwd=PROJECT_ROOT, capture_output=True, check=True).stdout
+
+
+def _check_commit() -> int:
+    files = _staged_python()
+    if not files:
         return 0
-    print("installed copies were stale/incomplete: applying repo -> install sync ...")
-    rc = _run(
-        [sys.executable, str(tool), "--apply"],
-        "installed-skill sync (repo -> install)",
-        blocking=False,
-    )
-    if rc != 0:
-        return rc
-    return _run(
-        [sys.executable, str(tool)],
-        "installed-skill consistency (re-check)",
-    )
+    # Validate exactly the index, without stashing or changing the worktree.
+    with tempfile.TemporaryDirectory(prefix="invest-staged-") as directory:
+        staged = []
+        for path in files:
+            try:
+                source = _staged_bytes(path)
+                compile(source, str(path), "exec")
+                destination = Path(directory) / path.relative_to(PROJECT_ROOT)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_bytes(source)
+                staged.append(str(destination))
+            except (SyntaxError, UnicodeError, OSError, ValueError, subprocess.CalledProcessError) as error:
+                print(f"Staged Python syntax/read failure: {path}: {type(error).__name__}")
+                return 1
+        config = PROJECT_ROOT / "pyproject.toml"
+        options = ["--config", str(config)] if config.is_file() else []
+        return _run([sys.executable, "-m", "ruff", "check", "--no-cache", *options, *staged],
+                    "Staged Python static checks")
 
 
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="replace")
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--skip-tests", action="store_true")
-    parser.add_argument("--skip-e2e", action="store_true")
-    parser.add_argument("--skip-install-sync", action="store_true")
+    parser.add_argument("--commit", action="store_true")
     args = parser.parse_args(argv)
-    _safe_console()
-
-    gates: list[tuple[list[str], str]] = [
-        ([sys.executable, "-m", "ruff", "check", "."], "ruff check (CI Lint)"),
-        (
-            [sys.executable, "-m", "compileall", "-q", *COMPONENTS],
-            "compileall (all components)",
-        ),
-        (
-            [sys.executable, str(PROJECT_ROOT / "tools" / "validate_skills.py")],
-            "validate_skills (frontmatter + links)",
-        ),
-    ]
-    if not args.skip_tests:
-        gates.append(
-            (
-                [sys.executable, "-m", "pytest", *COMPONENTS, "-q"],
-                "invest test suite (CI Run test suite)",
-            )
-        )
-
-    for cmd, label in gates:
-        rc = _run(cmd, label)
-        if rc != 0:
-            print(f"\nGATE RED at: {label}\nFix the root cause; do not bypass.")
-            return rc
-
-    if not args.skip_e2e:
-        e2e = PROJECT_ROOT / "e2e" / "run_biren_invest_e2e.py"
-        if (PROJECT_ROOT.parent / "revenue-forecast").is_dir():
-            rc = _run(
-                [sys.executable, str(e2e)], "Biren invest E2E (CI)"
-            )
-            if rc != 0:
-                print("\nGATE RED at: Biren invest E2E\nFix the root cause.")
-                return rc
-        else:
-            print(
-                "\n=== Biren invest E2E (CI) ===\n"
-                "SKIP: no revenue-forecast sibling; CI clones it."
-            )
-
-    if not args.skip_install_sync:
-        rc = _install_sync()
-        if rc != 0:
-            print(
-                "\nGATE RED at: installed-skill consistency\n"
-                "Fix: python tools/sync_installations.py --apply"
-            )
-            return rc
-
-    print("\n=== UTF-8 BOM scan ===")
-    if _no_bom_check() != 0:
-        return 1
-
-    print("\npre-push gate GREEN — safe to push (then self-monitor CI).")
-    return 0
+    if args.commit:
+        return _check_commit()
+    code = _run([sys.executable, "-m", "ruff", "check", "--no-cache", "."], "Ruff")
+    if code:
+        return code
+    with tempfile.TemporaryDirectory(prefix="invest-git-smoke-") as directory:
+        return _run([sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "-q", *SMOKE],
+                    "Fixed revenue adapter / cross-repository integrity smoke; full validation remains in CI",
+                    env_overrides={"REVENUE_PUBLICATION_REGISTRY": str(Path(directory) / "index")})
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 import os
 import sys
 from pathlib import Path
@@ -326,4 +327,5 @@ def load_revenue_fixture(name: str) -> dict:
     fixtures = _build_fixtures()
     if name not in fixtures:
         raise KeyError(f"unknown revenue fixture: {name}")
-    return fixtures[name]
+    # Cached generation is shared; mutable test inputs must never be shared.
+    return deepcopy(fixtures[name])

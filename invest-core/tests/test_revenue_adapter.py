@@ -117,12 +117,9 @@ class RevenueAdapterTests(unittest.TestCase):
         result.pop("publication_receipt", None)
         result.pop("result_sha256", None)
         context = report.validate_published_forecast(result, result["input_document"])
-        # R2.1: the fixture was published as host_signed; rebuilding the receipt
-        # after capture edits must preserve that attestation (and never turn a
-        # legitimate fixture into an unattested one that other tests share).
-        result["publication_receipt"] = build_publication_receipt(
-            result, context, attestation_status="host_signed"
-        )
+        # Changed capture content has no new host signature. This test checks
+        # workflow transfer, not a fabricated attestation label.
+        result["publication_receipt"] = build_publication_receipt(result, context)
         result["result_sha256"] = core.canonical_sha256(
             {key: value for key, value in result.items() if key != "result_sha256"}
         )
@@ -281,7 +278,6 @@ class RevenueAdapterTests(unittest.TestCase):
                 expected_publication_gates(forged),
                 core.ENGINE_VERSION,
             ),
-            attestation_status="host_signed",  # forged claim — must fail on content
         )
         forged["result_sha256"] = core.canonical_sha256(
             {key: value for key, value in forged.items() if key != "result_sha256"}
@@ -377,10 +373,9 @@ class RevenueAdapterTests(unittest.TestCase):
             adapt_revenue(forged, scope="company", segment_name=None)
 
 
-    def test_unregistered_input_anchor_is_rejected(self) -> None:
-        # RED (R1.2 #1): an artifact whose input anchor was never registered
-        # (bypassing run_forecast's registry write) must be rejected by the
-        # default require_registered_input policy.  Previously ACCEPTED.
+    def test_unregistered_input_anchor_uses_self_contained_validation(self) -> None:
+        # R7: the validated artifact is authoritative; an empty rebuildable
+        # index must not become a second execution permission.
         result = forecast_result()
         import os
         import tempfile
@@ -389,17 +384,16 @@ class RevenueAdapterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             os.environ["REVENUE_PUBLICATION_REGISTRY"] = directory
             try:
-                with self.assertRaisesRegex(InvestmentArtifactError, "registered"):
-                    adapt_revenue(result, scope="company", segment_name=None)
+                adapter = adapt_revenue(result, scope="company", segment_name=None)
+                self.assertEqual(adapter["registered_input_verification"], "not_required_self_contained")
             finally:
                 if previous is None:
                     os.environ.pop("REVENUE_PUBLICATION_REGISTRY", None)
                 else:
                     os.environ["REVENUE_PUBLICATION_REGISTRY"] = previous
 
-    def test_unregistered_anchor_opt_out_is_explicit_and_traced(self) -> None:
-        # The registry check may be explicitly downgraded, but the downgrade
-        # must be recorded in the adapter output (trace, not silent).
+    def test_missing_registry_needs_no_opt_out_flag(self) -> None:
+        # A missing index no longer requires a caller opt-out switch.
         result = forecast_result()
         import os
         import tempfile
@@ -412,19 +406,17 @@ class RevenueAdapterTests(unittest.TestCase):
                     result,
                     scope="company",
                     segment_name=None,
-                    require_registered_input=False,
                 )
             finally:
                 if previous is None:
                     os.environ.pop("REVENUE_PUBLICATION_REGISTRY", None)
                 else:
                     os.environ["REVENUE_PUBLICATION_REGISTRY"] = previous
-        self.assertEqual(adapter["registered_input_verification"], "bypassed")
+        self.assertEqual(adapter["registered_input_verification"], "not_required_self_contained")
 
 
-    def test_unattested_artifact_is_rejected_by_default(self) -> None:
-        # RED (R2.1): an unattested formal artifact (no host signer at publish
-        # time) must be rejected by the default require_attestation policy.
+    def test_unattested_artifact_is_validated_without_signing_permission(self) -> None:
+        # No signer is required; full recomputation and factual bindings remain.
         result = copy.deepcopy(forecast_result())
         receipt = result["publication_receipt"]
         receipt["attestation_status"] = "unattested"
@@ -434,12 +426,11 @@ class RevenueAdapterTests(unittest.TestCase):
         result["result_sha256"] = canonical_sha256(
             {key: value for key, value in result.items() if key != "result_sha256"}
         )
-        with self.assertRaisesRegex(InvestmentArtifactError, "unattested"):
-            adapt_revenue(result, scope="company", segment_name=None)
+        adapter = adapt_revenue(result, scope="company", segment_name=None)
+        self.assertEqual(adapter["attestation_verification"], "unattested_observed")
 
-    def test_unattested_opt_out_is_explicit_and_traced(self) -> None:
-        # The attestation requirement may be explicitly downgraded, but the
-        # downgrade must be recorded in the adapter output (trace, not silent).
+    def test_unattested_observation_is_explicit_without_opt_out(self) -> None:
+        # Observe the original label without fabricating a host signature.
         result = copy.deepcopy(forecast_result())
         receipt = result["publication_receipt"]
         receipt["attestation_status"] = "unattested"
@@ -453,9 +444,8 @@ class RevenueAdapterTests(unittest.TestCase):
             result,
             scope="company",
             segment_name=None,
-            require_attestation=False,
         )
-        self.assertEqual(adapter["attestation_verification"], "unattested_bypassed")
+        self.assertEqual(adapter["attestation_verification"], "unattested_observed")
 
 
 if __name__ == "__main__":

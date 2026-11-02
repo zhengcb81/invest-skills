@@ -112,8 +112,8 @@ class ForgedCrossRepoChainTests(unittest.TestCase):
         validate_forecast_output(legit)
         validate_revenue_forecast(legit)
         adapter = adapt_revenue(legit, scope="company", segment_name=None)
-        self.assertEqual(adapter["registered_input_verification"], "registered")
-        self.assertEqual(adapter["attestation_verification"], "host_signed")
+        self.assertEqual(adapter["registered_input_verification"], "not_required_self_contained")
+        self.assertEqual(adapter["attestation_verification"], legit["publication_receipt"]["attestation_status"] + "_observed")
 
 
 if __name__ == "__main__":

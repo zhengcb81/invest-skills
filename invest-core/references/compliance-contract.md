@@ -25,3 +25,7 @@ Current revenue schema 3.4 is labeled `current_validated` and carries its workfl
 ## Harness boundary
 
 A skill file cannot prove that a model read instructions or truly called a tool. The enforceable boundary is therefore acceptance: downstream code and publication accept only validated artifacts and receipts. If stronger proof of tool invocation is required, the host harness must supply authenticated tool-event logs; a model-authored call ID alone is not authentication.
+
+## Self-contained revenue consumption (R7 simplification)
+
+A current formal revenue result is accepted after the revenue-owned full input/output recomputation, source and identity binding, scenario checks and artifact hashes. Global publication-index presence and host attestation are not additional permissions. An absent or corrupt rebuildable index cannot block this adapter. Attestation labels are observed without promoting an unsigned result to signed. This does not accept mutated output, currencies, periods, sources, assumptions or scenario paths.
